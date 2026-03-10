@@ -1,0 +1,20 @@
+{
+  "name": "gotom_adcp_mcp_ui",
+  "version": "0.0.1",
+  "description": "goTom AdCP MCP UI",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Mike Meier",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.54",
+    "@ai-sdk/mcp": "^1.0.23",
+    "@ai-sdk/openai": "^3.0.37",
+    "ai": "^6.0.105",
+    "node-cache": "^5.1.2"
+  }
+}

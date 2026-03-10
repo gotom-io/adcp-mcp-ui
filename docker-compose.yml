@@ -1,0 +1,22 @@
+services:
+    app:
+        image: node:lts
+        tty: true
+        working_dir: /app
+        user: "${HOST_UID:?err}:${HOST_GID:?err}"
+        volumes:
+            - ./app:/app
+        ports:
+            - '3851:3000'
+        environment:
+            OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+            ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    gemini:
+        build:
+            dockerfile: ./gemini/Dockerfile
+        tty: true
+        working_dir: /opt
+        user: "${HOST_UID:?err}:${HOST_GID:?err}"
+        volumes:
+            - ./app:/opt/app
+            - ./gemini/GEMINI.md:/opt/GEMINI.md
