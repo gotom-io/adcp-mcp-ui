@@ -280,9 +280,10 @@
       top: 0;
       left: 0;
       right: 0;
-      height: 2px;
+      height: 3px;
       background: var(--border-color);
       z-index: 10;
+      overflow: hidden;
     }
     .status-bar .progress {
       height: 100%;
@@ -291,13 +292,33 @@
       transition: width 0.3s ease;
     }
     .status-bar.loading .progress {
-      width: 100%;
-      animation: pulse 1.5s infinite;
+      width: 30%;
+      animation: loading-sweep 1.2s ease-in-out infinite;
     }
-    @keyframes pulse {
-      0% { opacity: 0.6; }
-      50% { opacity: 1; }
-      100% { opacity: 0.6; }
+    @keyframes loading-sweep {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(400%); }
+    }
+
+    /* Loading spinner for messages */
+    .loading-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding: 0.5rem 0;
+    }
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
     
     .error-toast {
@@ -368,7 +389,13 @@
         <!-- Chat Messages -->
         <div class="message" v-for="(msg, index) in messages" :key="index" :class="msg.role">
           <div class="message-content" v-if="msg.role === 'user'">{{ msg.content }}</div>
-          <div class="message-content markdown-body" v-else v-html="renderMarkdown(msg.content)"></div>
+          <div class="message-content markdown-body" v-else>
+            <div class="loading-indicator" v-if="!msg.content && loading">
+              <div class="spinner"></div>
+              <span>Thinking...</span>
+            </div>
+            <div v-else v-html="renderMarkdown(msg.content)"></div>
+          </div>
         </div>
         
         <!-- Error Toast -->
