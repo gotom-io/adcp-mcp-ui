@@ -9,8 +9,8 @@ import { createMCPClient } from '@ai-sdk/mcp';
 import NodeCache from 'node-cache';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
+const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
 
 const getHttpClientTools = async function(adcpAuth) {
   let clientTools = httpClientToolsCache.get(adcpAuth)
@@ -20,7 +20,8 @@ const getHttpClientTools = async function(adcpAuth) {
         type: 'http',
         url: 'https://dev-demo-mcp.gotom.io',
         headers: {
-          'x-adcp-auth': adcpAuth
+          'x-adcp-auth': adcpAuth,
+          'Authorization': `Basic ${Buffer.from(`${process.env.BASIC_AUTH_USER}:${process.env.BASIC_AUTH_PASS}`).toString('base64')}`
         },
       },
     });
@@ -33,10 +34,10 @@ const getHttpClientTools = async function(adcpAuth) {
 const server = createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/api/chat') {
     const adcpAuth = req.headers['x-adcp-auth'];
-    if (!adcpAuth) {
+    if (!adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1) {
       res.statusCode = 403;
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Forbidden: missing authentication' }));
+      res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication' }));
       return;
     }
 

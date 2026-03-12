@@ -1,9 +1,13 @@
 services:
     app:
-        image: node:lts
-        tty: true
+        image: adcp-mcp-ui:latest
+        container_name: adcp-mcp-ui
+        build:
+          context: .
+          dockerfile: ./docker/Dockerfile
         working_dir: /app
         user: "${HOST_UID:?err}:${HOST_GID:?err}"
+        entrypoint: ["node", "server.mjs"]
         volumes:
             - ./app:/app
         ports:
@@ -11,12 +15,7 @@ services:
         environment:
             OPENAI_API_KEY: ${OPENAI_API_KEY:-}
             ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    gemini:
-        build:
-            dockerfile: ./gemini/Dockerfile
-        tty: true
-        working_dir: /opt
-        user: "${HOST_UID:?err}:${HOST_GID:?err}"
-        volumes:
-            - ./app:/opt/app
-            - ./gemini/GEMINI.md:/opt/GEMINI.md
+            VALID_ADCP_AUTH_KEYS: ${VALID_ADCP_AUTH_KEYS:-}
+            BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+            BASIC_AUTH_PASS: ${BASIC_AUTH_PASS:-}
+
