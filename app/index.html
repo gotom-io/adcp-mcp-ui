@@ -333,6 +333,28 @@
       font-family: var(--font-mono);
     }
 
+    /* Clear button */
+    .clear-btn {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.75rem;
+      border-radius: 6px;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .clear-btn:hover:not(:disabled) {
+      border-color: #dc2626;
+      color: #fca5a5;
+    }
+    .clear-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     /* Scrollbar styling */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -367,7 +389,9 @@
         <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" placeholder="sk-...">
       </div>
       
-      
+      <div class="config-group" style="margin-top: auto;">
+        <button class="clear-btn" @click="clearHistory" :disabled="loading">Clear Context History</button>
+      </div>
     </aside>
 
     <!-- Main Content -->
@@ -410,7 +434,7 @@
           <textarea 
             class="chat-input" 
             v-model="promptInput" 
-            @keydown.enter.prevent="submit"
+            @keydown.enter.exact.prevent="submit"
             rows="1" 
             placeholder="Initialize command sequence..."
             ref="inputArea"
@@ -489,6 +513,27 @@
           if (!text) return '';
           // marked.parse handles Markdown to HTML conversion
           return marked.parse(text);
+        };
+
+        const clearHistory = async () => {
+          if (loading.value) return;
+          
+          try {
+            await fetch('/api/chat', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-adcp-auth': authToken.value,
+                'x-mcp-server': mcpServer.value,
+                'x-ai-model': aiModel.value
+              },
+              body: JSON.stringify({ clearHistory: true })
+            });
+            messages.value = [];
+            error.value = '';
+          } catch (err) {
+            error.value = 'Failed to clear history: ' + err.message;
+          }
         };
 
         const submit = async () => {
@@ -583,6 +628,7 @@
           saveServerCookie,
           saveModelCookie,
           submit,
+          clearHistory,
           chatContainer,
           inputArea,
           adjustTextareaHeight,

@@ -10,7 +10,36 @@ import NodeCache from 'node-cache';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
+const contextHistoryCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
 const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
+
+const MAX_CONTEXT_CHARS = 20000;
+
+// Get context history for a user session
+const getContextHistory = (sessionKey) => {
+  return contextHistoryCache.get(sessionKey) || [];
+};
+
+// Add message to context history and trim if needed
+const addToContextHistory = (sessionKey, role, content) => {
+  const history = getContextHistory(sessionKey);
+  history.push({ role, content });
+  
+  // Trim history if total chars exceed limit
+  let totalChars = history.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+  while (totalChars > MAX_CONTEXT_CHARS && history.length > 1) {
+    const removed = history.shift();
+    totalChars -= removed.content?.length || 0;
+  }
+  
+  contextHistoryCache.set(sessionKey, history);
+  return history;
+};
+
+// Clear context history for a session
+const clearContextHistory = (sessionKey) => {
+  contextHistoryCache.del(sessionKey);
+};
 
 const getModel = (modelString) => {
   const [provider, modelName] = modelString.split(':');
@@ -72,9 +101,23 @@ const server = createServer(async (req, res) => {
 
     console.log({ body })
 
+    // Session key based on auth and MCP server
+    const sessionKey = `${adcpAuth}:${mcpServerUrl}`;
+
+    // Handle clear history command
+    if (body.clearHistory) {
+      clearContextHistory(sessionKey);
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ success: true, message: 'History cleared' }));
+      return;
+    }
+
+    // Add user message to history and get full context
+    const messages = addToContextHistory(sessionKey, 'user', body.prompt);
+
     const result = await streamText({
       model: getModel(aiModel),
-      prompt: body.prompt,
+      messages: messages,
       temperature: 0, // Recommended for tool calls
       tools: await getHttpClientTools(adcpAuth, mcpServerUrl),
       onError: (onError) => {
@@ -82,6 +125,10 @@ const server = createServer(async (req, res) => {
       },
       onFinish: (onFinish) => {
         console.log({ onFinish })
+        // Add assistant response to history
+        if (onFinish.text) {
+          addToContextHistory(sessionKey, 'assistant', onFinish.text);
+        }
       },
       onStepFinish: (onStepFinish) => {
         console.log({ onStepFinish })
