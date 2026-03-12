@@ -326,6 +326,22 @@
       <div class="brand">goTom AdCP</div>
       
       <div class="config-group">
+        <label for="server">MCP Server</label>
+        <select id="server" class="input-field" v-model="mcpServer" @change="saveServerCookie">
+          <option value="https://dev-demo-mcp.gotom.io">Dev Demo</option>
+        </select>
+      </div>
+
+      <div class="config-group">
+        <label for="model">AI Model</label>
+        <select id="model" class="input-field" v-model="aiModel" @change="saveModelCookie">
+          <option value="anthropic:claude-sonnet-4-6">Claude Sonnet 4.6</option>
+          <option value="anthropic:claude-opus-4-5">Claude Opus 4.5</option>
+          <option value="openai:gpt-4.1">GPT-4.1</option>
+        </select>
+      </div>
+
+      <div class="config-group">
         <label for="auth">Authorization / API Key</label>
         <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" placeholder="sk-...">
       </div>
@@ -387,6 +403,8 @@
     createApp({
       setup() {
         const authToken = ref('');
+        const mcpServer = ref('https://dev-demo-mcp.gotom.io');
+        const aiModel = ref('anthropic:claude-sonnet-4-6');
         const promptInput = ref('');
         const messages = ref([]);
         const error = ref('');
@@ -405,8 +423,24 @@
           document.cookie = `adcp_auth=${authToken.value}; path=/; max-age=31536000`;
         };
 
+        const saveServerCookie = () => {
+          document.cookie = `mcp_server=${mcpServer.value}; path=/; max-age=31536000`;
+        };
+
+        const saveModelCookie = () => {
+          document.cookie = `ai_model=${aiModel.value}; path=/; max-age=31536000`;
+        };
+
         onMounted(() => {
           authToken.value = getCookie('adcp_auth');
+          const savedServer = getCookie('mcp_server');
+          if (savedServer) {
+            mcpServer.value = savedServer;
+          }
+          const savedModel = getCookie('ai_model');
+          if (savedModel) {
+            aiModel.value = savedModel;
+          }
         });
 
         const scrollToBottom = async () => {
@@ -432,7 +466,12 @@
 
         const submit = async () => {
           const text = promptInput.value.trim();
-          if (!authToken.value || !text || loading.value) return;
+          if (!text || loading.value) return;
+          
+          if (!authToken.value) {
+            error.value = 'Please enter an API key in the sidebar before sending a command.';
+            return;
+          }
           
           // Add user message
           messages.value.push({ role: 'user', content: text });
@@ -451,7 +490,9 @@
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'x-adcp-auth': authToken.value
+                'x-adcp-auth': authToken.value,
+                'x-mcp-server': mcpServer.value,
+                'x-ai-model': aiModel.value
               },
               body: JSON.stringify({ prompt: text })
             });
@@ -504,12 +545,16 @@
         };
 
         return { 
-          authToken, 
+          authToken,
+          mcpServer,
+          aiModel,
           promptInput, 
           messages, 
           error, 
           loading, 
-          saveCookie, 
+          saveCookie,
+          saveServerCookie,
+          saveModelCookie,
           submit,
           chatContainer,
           inputArea,

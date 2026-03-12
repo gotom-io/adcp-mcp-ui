@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stepCountIs, streamText } from 'ai';
-//import { openai } from '@ai-sdk/openai';
+import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createMCPClient } from '@ai-sdk/mcp';
 import NodeCache from 'node-cache';
@@ -12,27 +12,41 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
 const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
 
-const getHttpClientTools = async function(adcpAuth) {
-  let clientTools = httpClientToolsCache.get(adcpAuth)
+const getModel = (modelString) => {
+  const [provider, modelName] = modelString.split(':');
+  switch (provider) {
+    case 'anthropic':
+      return anthropic(modelName);
+    case 'openai':
+      return openai(modelName);
+    default:
+      return anthropic('claude-sonnet-4-6');
+  }
+};
+
+const getHttpClientTools = async function(adcpAuth, mcpServerUrl) {
+  const cacheKey = `${ adcpAuth }:${ mcpServerUrl }`;
+  let clientTools = httpClientToolsCache.get(cacheKey);
   if (!clientTools) {
     const httpClient = await createMCPClient({
       transport: {
         type: 'http',
-        url: 'https://dev-demo-mcp.gotom.io',
+        url: mcpServerUrl,
         headers: {
           'x-adcp-auth': adcpAuth,
-          'Authorization': `Basic ${Buffer.from(`${process.env.BASIC_AUTH_USER}:${process.env.BASIC_AUTH_PASS}`).toString('base64')}`
+          'Authorization': `Basic ${ Buffer.from(`${ process.env.BASIC_AUTH_USER }:${ process.env.BASIC_AUTH_PASS }`).toString('base64') }`
         },
       },
     });
     clientTools = await httpClient.tools();
   }
-  httpClientToolsCache.set(adcpAuth, clientTools);
+  httpClientToolsCache.set(cacheKey, clientTools);
   return clientTools;
 }
 
 const server = createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/api/chat') {
+    console.log('Headers:', req.headers);
     const adcpAuth = req.headers['x-adcp-auth'];
     if (!adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1) {
       res.statusCode = 403;
@@ -40,6 +54,16 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication' }));
       return;
     }
+
+    const mcpServerUrl = req.headers['x-mcp-server'];
+    if (!mcpServerUrl) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'MCP server missing' }));
+      return;
+    }
+
+    const aiModel = req.headers['x-ai-model'] || 'anthropic:claude-sonnet-4-6';
 
     const body = await new Promise((resolve) => {
       let data = '';
@@ -50,10 +74,10 @@ const server = createServer(async (req, res) => {
     console.log({ body })
 
     const result = await streamText({
-      model: anthropic('claude-sonnet-4-6'),
+      model: getModel(aiModel),
       prompt: body.prompt,
       temperature: 0, // Recommended for tool calls
-      tools: await getHttpClientTools(adcpAuth),
+      tools: await getHttpClientTools(adcpAuth, mcpServerUrl),
       onError: (onError) => {
         console.log({ onError })
       },
