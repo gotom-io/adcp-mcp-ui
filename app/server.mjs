@@ -46,7 +46,6 @@ const getHttpClientTools = async function(adcpAuth, mcpServerUrl) {
 
 const server = createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/api/chat') {
-    console.log('Headers:', req.headers);
     const adcpAuth = req.headers['x-adcp-auth'];
     if (!adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1) {
       res.statusCode = 403;
