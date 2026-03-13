@@ -13,7 +13,7 @@ const httpClientToolsCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, us
 const contextHistoryCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
 const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
 
-const MAX_CONTEXT_CHARS = 20000;
+const MAX_CONTEXT_CHARS = 100_000;
 
 // Get context history for a user session
 const getContextHistory = (sessionKey) => {
@@ -27,13 +27,15 @@ const addToContextHistory = (sessionKey, role, content) => {
   
   // Trim history if total chars exceed limit
   let totalChars = history.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+  let messagesRemoved = 0;
   while (totalChars > MAX_CONTEXT_CHARS && history.length > 1) {
     const removed = history.shift();
     totalChars -= removed.content?.length || 0;
+    messagesRemoved++;
   }
   
   contextHistoryCache.set(sessionKey, history);
-  return history;
+  return { history, messagesRemoved };
 };
 
 // Clear context history for a session
@@ -121,7 +123,16 @@ const server = createServer(async (req, res) => {
     }
 
     // Add user message to history and get full context
-    const messages = addToContextHistory(sessionKey, 'user', body.prompt);
+    const { history: messages, messagesRemoved } = addToContextHistory(sessionKey, 'user', body.prompt);
+
+    // If messages were truncated, send a warning to the client first
+    if (messagesRemoved > 0) {
+      res.write(JSON.stringify({ 
+        type: 'context-truncated', 
+        messagesRemoved,
+        message: `Context window limit reached. ${messagesRemoved} older message${messagesRemoved > 1 ? 's were' : ' was'} removed from context.`
+      }) + '\n');
+    }
 
     const result = await streamText({
       model: getModel(aiModel),
@@ -133,7 +144,7 @@ const server = createServer(async (req, res) => {
       },
       onFinish: (onFinish) => {
         console.log({ onFinish })
-        // Add assistant response to history
+        // Add assistant response to history (we don't need the truncation info here)
         if (onFinish.text) {
           addToContextHistory(sessionKey, 'assistant', onFinish.text);
         }
@@ -156,13 +167,22 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // Serve static files
+  const staticFiles = {
+    '/': { file: 'index.html', contentType: 'text/html' },
+    '/styles.css': { file: 'styles.css', contentType: 'text/css' },
+    '/app.js': { file: 'app.js', contentType: 'application/javascript' },
+  };
+
+  const staticFile = staticFiles[req.url] || staticFiles['/'];
+  
   try {
-    const html = await readFile(join(__dirname, 'index.html'));
-    res.setHeader('Content-Type', 'text/html');
-    res.end(html);
+    const content = await readFile(join(__dirname, staticFile.file));
+    res.setHeader('Content-Type', staticFile.contentType);
+    res.end(content);
   } catch (err) {
     res.statusCode = 500;
-    res.end('Error loading index.html');
+    res.end(`Error loading ${staticFile.file}`);
   }
 });
 
