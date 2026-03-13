@@ -92,6 +92,14 @@ const server = createServer(async (req, res) => {
     }
 
     const aiModel = req.headers['x-ai-model'] || 'anthropic:claude-sonnet-4-6';
+    const sessionId = req.headers['x-session-id'];
+
+    if (!sessionId) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Session ID missing' }));
+      return;
+    }
 
     const body = await new Promise((resolve) => {
       let data = '';
@@ -101,8 +109,8 @@ const server = createServer(async (req, res) => {
 
     console.log({ body })
 
-    // Session key based on auth and MCP server
-    const sessionKey = `${adcpAuth}:${mcpServerUrl}`;
+    // Session key based on auth, MCP server, and unique session ID
+    const sessionKey = `${adcpAuth}:${mcpServerUrl}:${sessionId}`;
 
     // Handle clear history command
     if (body.clearHistory) {
