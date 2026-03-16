@@ -7,12 +7,16 @@ import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createMCPClient } from '@ai-sdk/mcp';
 import NodeCache from 'node-cache';
+import fs from "fs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
 const contextHistoryCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
 const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
 
+if(process.env.MCP_SERVER_CHOICES){
+  console.debug("process.env.MCP_SERVER_CHOICES:", process.env.MCP_SERVER_CHOICES);
+}
 const MAX_CONTEXT_CHARS = 200_000;
 
 const SYSTEM_PROMPT = `You are a helpful AI assistant.
@@ -101,12 +105,30 @@ const getHttpClientTools = async function(adcpAuth, mcpServerUrl) {
 }
 
 const server = createServer(async (req, res) => {
+  if ( req.method === 'GET' && req.url === '/' ) {
+    const template = fs.readFileSync("./index.template.html", "utf8")
+    let chatConfig =  {};
+    if(process.env.MCP_SERVER_CHOICES){
+      chatConfig.serverChoices = JSON.parse(process.env.MCP_SERVER_CHOICES || "[]");
+    }
+
+    if(! chatConfig.serverChoices){
+      chatConfig.serverChoices = [{url: "https://dev-demo-mcp.gotom.io", label: "Dev Demo"}]
+    }
+
+    const html = template
+        .replaceAll("{{ WINDOW_CHAT_CONFIG }}", JSON.stringify(chatConfig, ' ', 2))
+
+    res.writeHead(200, { "Content-Type": "text/html" })
+    res.end(html)
+    return;
+  }
   if (req.method === 'POST' && req.url === '/api/chat') {
     const adcpAuth = req.headers['x-adcp-auth'];
     if (!adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1) {
       res.statusCode = 403;
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication' }));
+      res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication (add the API key to the .env variable VALID_ADCP_AUTH_KEYS)' }));
       return;
     }
 
@@ -231,20 +253,21 @@ const server = createServer(async (req, res) => {
 
   // Serve static files
   const staticFiles = {
-    '/': { file: 'index.html', contentType: 'text/html' },
     '/styles.css': { file: 'styles.css', contentType: 'text/css' },
     '/app.js': { file: 'app.js', contentType: 'application/javascript' },
   };
 
-  const staticFile = staticFiles[req.url] || staticFiles['/'];
+  const staticFile = staticFiles[req.url];
   
-  try {
-    const content = await readFile(join(__dirname, staticFile.file));
-    res.setHeader('Content-Type', staticFile.contentType);
-    res.end(content);
-  } catch (err) {
-    res.statusCode = 500;
-    res.end(`Error loading ${staticFile.file}`);
+  if(staticFile){
+    try {
+      const content = await readFile(join(__dirname, staticFile.file));
+      res.setHeader('Content-Type', staticFile.contentType);
+      res.end(content);
+    } catch (err) {
+      res.statusCode = 500;
+      res.end(`Error loading ${staticFile.file}`);
+    }
   }
 });
 

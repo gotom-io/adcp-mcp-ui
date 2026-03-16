@@ -3,7 +3,6 @@ const { createApp, ref, onMounted, nextTick } = Vue;
 createApp({
   setup() {
     const authToken = ref('');
-    const mcpServer = ref('https://dev-demo-mcp.gotom.io');
     const aiModel = ref('anthropic:claude-sonnet-4-6');
     const promptInput = ref('');
     const messages = ref([]);
@@ -11,6 +10,9 @@ createApp({
     const loading = ref(false);
     const chatContainer = ref(null);
     const inputArea = ref(null);
+    const serverChoices = ref(window.chat_config.serverChoices);
+    const mcpServer = ref(serverChoices.value[0].url);
+    console.log("window.chat_config", window.chat_config);
     
     // Generate unique session ID for this browser tab
     const sessionId = crypto.randomUUID();
@@ -192,7 +194,8 @@ createApp({
       chatContainer,
       inputArea,
       adjustTextareaHeight,
-      renderMarkdown
+      renderMarkdown,
+      serverChoices,
     };
   }
 }).mount('#app');

@@ -49,7 +49,13 @@
         <div class="config-group">
           <label for="server">MCP Server</label>
           <select id="server" class="input-field" v-model="mcpServer" @change="saveServerCookie">
-            <option value="https://dev-demo-mcp.gotom.io">Dev Demo</option>
+            <option
+                v-for="server in serverChoices"
+                :key="server.url"
+                :value="server.url"
+            >
+              {{ server.label }}
+            </option>
           </select>
         </div>
 
@@ -161,6 +167,10 @@
       </div>
     </main>
   </div>
+
+  <script type="text/javascript">
+      window.chat_config = {{ WINDOW_CHAT_CONFIG }}
+  </script>
 
   <script src="/app.js"></script>
 </body>

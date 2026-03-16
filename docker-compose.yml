@@ -18,4 +18,5 @@ services:
             VALID_ADCP_AUTH_KEYS: ${VALID_ADCP_AUTH_KEYS:-}
             BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
             BASIC_AUTH_PASS: ${BASIC_AUTH_PASS:-}
+            MCP_SERVER_CHOICES: ${MCP_SERVER_CHOICES:-}
 
