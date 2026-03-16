@@ -13,24 +13,49 @@ const httpClientToolsCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, us
 const contextHistoryCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
 const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
 
-const MAX_CONTEXT_CHARS = 100_000;
+const MAX_CONTEXT_CHARS = 200_000;
+
+const SYSTEM_PROMPT = `You are a helpful AI assistant.
+
+Your goal is to help the user achieve their task as efficiently and accurately as possible.
+
+When tools are available, prefer using them whenever they can improve the quality, accuracy, or efficiency of the response. 
+Only answer directly without tools if a tool would not meaningfully help.
+
+Follow the user's instructions carefully, ask clarifying questions when necessary, and provide clear, concise responses.`;
 
 // Get context history for a user session
 const getContextHistory = (sessionKey) => {
   return contextHistoryCache.get(sessionKey) || [];
 };
 
+// Calculate the character size of a message (handles text, tool calls, and tool results)
+const getMessageSize = (msg) => {
+  if (typeof msg.content === 'string') {
+    return msg.content.length;
+  }
+  if (Array.isArray(msg.content)) {
+    return msg.content.reduce((sum, part) => {
+      if (part.type === 'text') return sum + (part.text?.length || 0);
+      if (part.type === 'tool-call') return sum + JSON.stringify(part.input || {}).length + (part.toolName?.length || 0);
+      if (part.type === 'tool-result') return sum + JSON.stringify(part.output?.value || '').length;
+      return sum;
+    }, 0);
+  }
+  return 0;
+};
+
 // Add message to context history and trim if needed
-const addToContextHistory = (sessionKey, role, content) => {
+const addToContextHistory = (sessionKey, message) => {
   const history = getContextHistory(sessionKey);
-  history.push({ role, content });
+  history.push(message);
   
   // Trim history if total chars exceed limit
-  let totalChars = history.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+  let totalChars = history.reduce((sum, msg) => sum + getMessageSize(msg), 0);
   let messagesRemoved = 0;
   while (totalChars > MAX_CONTEXT_CHARS && history.length > 1) {
     const removed = history.shift();
-    totalChars -= removed.content?.length || 0;
+    totalChars -= getMessageSize(removed);
     messagesRemoved++;
   }
   
@@ -123,7 +148,7 @@ const server = createServer(async (req, res) => {
     }
 
     // Add user message to history and get full context
-    const { history: messages, messagesRemoved } = addToContextHistory(sessionKey, 'user', body.prompt);
+    const { history: messages, messagesRemoved } = addToContextHistory(sessionKey, { role: 'user', content: body.prompt });
 
     // If messages were truncated, send a warning to the client first
     if (messagesRemoved > 0) {
@@ -136,6 +161,7 @@ const server = createServer(async (req, res) => {
 
     const result = await streamText({
       model: getModel(aiModel),
+      system: SYSTEM_PROMPT,
       messages: messages,
       temperature: 0, // Recommended for tool calls
       tools: await getHttpClientTools(adcpAuth, mcpServerUrl),
@@ -144,13 +170,49 @@ const server = createServer(async (req, res) => {
       },
       onFinish: (onFinish) => {
         console.log({ onFinish })
-        // Add assistant response to history (we don't need the truncation info here)
-        if (onFinish.text) {
-          addToContextHistory(sessionKey, 'assistant', onFinish.text);
-        }
       },
-      onStepFinish: (onStepFinish) => {
-        console.log({ onStepFinish })
+      onStepFinish: (stepResult) => {
+        console.log({ onStepFinish: stepResult })
+        
+        // Build the assistant message content array for this step
+        const assistantContent = [];
+        
+        // Add text if present
+        if (stepResult.text) {
+          assistantContent.push({ type: 'text', text: stepResult.text });
+        }
+        
+        // Add tool calls if present
+        if (stepResult.toolCalls && stepResult.toolCalls.length > 0) {
+          for (const toolCall of stepResult.toolCalls) {
+            assistantContent.push({
+              type: 'tool-call',
+              toolCallId: toolCall.toolCallId,
+              toolName: toolCall.toolName,
+              input: toolCall.args ?? {}, // SDK requires 'input', fallback to empty object
+            });
+          }
+        }
+        
+        // Add assistant message to history if there's content
+        if (assistantContent.length > 0) {
+          addToContextHistory(sessionKey, { role: 'assistant', content: assistantContent });
+        }
+        
+        // Add tool results as separate tool messages
+        if (stepResult.toolResults && stepResult.toolResults.length > 0) {
+          for (const toolResult of stepResult.toolResults) {
+            addToContextHistory(sessionKey, {
+              role: 'tool',
+              content: [{
+                type: 'tool-result',
+                toolCallId: toolResult.toolCallId,
+                toolName: toolResult.toolName,
+                output: { type: 'json', value: toolResult.output ?? null },
+              }],
+            });
+          }
+        }
       },
       onAbort: (onAbort) => {
         console.log({ onAbort })
