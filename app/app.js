@@ -114,8 +114,7 @@ createApp({
       loading.value = true;
       scrollToBottom();
       
-      let assistantMsgIndex = messages.value.length;
-      messages.value.push({ role: 'assistant', content: '' });
+      let assistantMsgIndex = null;
 
       try {
         const res = await fetch('/api/chat', {
@@ -147,13 +146,15 @@ createApp({
           for (const line of lines) {
             try {
               const data = JSON.parse(line);
-              if (data.type === 'text-delta') {
+              if (data.type === 'text-delta' && data.text) {
+                if (assistantMsgIndex === null) {
+                  assistantMsgIndex = messages.value.length;
+                  messages.value.push({ role: 'assistant', content: '' });
+                }
                 messages.value[assistantMsgIndex].content += data.text;
                 scrollToBottom();
               } else if (data.type === 'context-truncated') {
-                // Insert warning message before the assistant response
-                messages.value.splice(assistantMsgIndex, 0, { role: 'warning', content: data.message });
-                assistantMsgIndex++; // Adjust index since we inserted before it
+                messages.value.push({ role: 'warning', content: data.message });
                 scrollToBottom();
               } else if (data.type === 'error') {
                 error.value = data.error;
@@ -166,9 +167,6 @@ createApp({
         }
       } catch (err) {
         error.value = err.message;
-        if (!messages.value[assistantMsgIndex].content) {
-          messages.value.pop();
-        }
         scrollToBottom();
       } finally {
         loading.value = false;

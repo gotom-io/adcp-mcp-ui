@@ -119,15 +119,19 @@
           </div>
           <!-- Assistant message -->
           <div class="message-content markdown-body" v-else>
-            <div class="loading-indicator" v-if="!msg.content && loading">
-              <div class="loading-dots">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <span>Thinking...</span>
+            <div v-if="msg.content" v-html="renderMarkdown(msg.content)"></div>
+          </div>
+        </div>
+
+        <!-- Thinking Indicator -->
+        <div class="thinking-indicator-wrapper" v-if="loading">
+          <div class="loading-indicator">
+            <div class="loading-dots">
+              <span></span>
+              <span></span>
+              <span></span>
             </div>
-            <div v-else v-html="renderMarkdown(msg.content)"></div>
+            <span>Thinking...</span>
           </div>
         </div>
 
