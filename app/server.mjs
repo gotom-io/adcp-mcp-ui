@@ -9,8 +9,8 @@ import { createMCPClient } from '@ai-sdk/mcp';
 import NodeCache from 'node-cache';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const httpClientToolsCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
-const contextHistoryCache = new NodeCache({ stdTTL: 3600, checkperiod: 1800, useClones: false });
+const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
+const contextHistoryCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
 const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
 
 const MAX_CONTEXT_CHARS = 200_000;
@@ -22,43 +22,30 @@ Your goal is to help the user achieve their task as efficiently and accurately a
 When tools are available, prefer using them whenever they can improve the quality, accuracy, or efficiency of the response. 
 Only answer directly without tools if a tool would not meaningfully help.
 
-Follow the user's instructions carefully, ask clarifying questions when necessary, and provide clear, concise responses.`;
+Follow the user's instructions carefully, ask clarifying questions when necessary, and provide clear, concise responses.
+
+When displaying results to the user, always include relevant identifiers (such as accountId, id, userId, etc.) so the user can reference and identify specific items.`;
 
 // Get context history for a user session
 const getContextHistory = (sessionKey) => {
   return contextHistoryCache.get(sessionKey) || [];
 };
 
-// Calculate the character size of a message (handles text, tool calls, and tool results)
-const getMessageSize = (msg) => {
-  if (typeof msg.content === 'string') {
-    return msg.content.length;
-  }
-  if (Array.isArray(msg.content)) {
-    return msg.content.reduce((sum, part) => {
-      if (part.type === 'text') return sum + (part.text?.length || 0);
-      if (part.type === 'tool-call') return sum + JSON.stringify(part.input || {}).length + (part.toolName?.length || 0);
-      if (part.type === 'tool-result') return sum + JSON.stringify(part.output?.value || '').length;
-      return sum;
-    }, 0);
-  }
-  return 0;
-};
-
 // Add message to context history and trim if needed
-const addToContextHistory = (sessionKey, message) => {
+const addToContextHistory = (sessionKey, role, content) => {
   const history = getContextHistory(sessionKey);
-  history.push(message);
-  
-  // Trim history if total chars exceed limit
-  let totalChars = history.reduce((sum, msg) => sum + getMessageSize(msg), 0);
+  history.push({ role, content });
+
+  // Trim history if total chars exceed limit (simple: just remove oldest messages)
+  let totalChars = history.reduce((sum, msg) => sum + msg.content.length, 0);
   let messagesRemoved = 0;
+
   while (totalChars > MAX_CONTEXT_CHARS && history.length > 1) {
     const removed = history.shift();
-    totalChars -= getMessageSize(removed);
+    totalChars -= removed.content.length;
     messagesRemoved++;
   }
-  
+
   contextHistoryCache.set(sessionKey, history);
   return { history, messagesRemoved };
 };
@@ -137,7 +124,7 @@ const server = createServer(async (req, res) => {
     console.log({ body })
 
     // Session key based on auth, MCP server, and unique session ID
-    const sessionKey = `${adcpAuth}:${mcpServerUrl}:${sessionId}`;
+    const sessionKey = `${ adcpAuth }:${ mcpServerUrl }:${ sessionId }`;
 
     // Handle clear history command
     if (body.clearHistory) {
@@ -148,14 +135,14 @@ const server = createServer(async (req, res) => {
     }
 
     // Add user message to history and get full context
-    const { history: messages, messagesRemoved } = addToContextHistory(sessionKey, { role: 'user', content: body.prompt });
+    const { history: messages, messagesRemoved } = addToContextHistory(sessionKey, 'user', body.prompt);
 
     // If messages were truncated, send a warning to the client first
     if (messagesRemoved > 0) {
-      res.write(JSON.stringify({ 
-        type: 'context-truncated', 
+      res.write(JSON.stringify({
+        type: 'context-truncated',
         messagesRemoved,
-        message: `Context window limit reached. ${messagesRemoved} older message${messagesRemoved > 1 ? 's were' : ' was'} removed from context.`
+        message: `Context window limit reached. ${ messagesRemoved } older message${ messagesRemoved > 1 ? 's were' : ' was' } removed from context. `
       }) + '\n');
     }
 
@@ -163,56 +150,23 @@ const server = createServer(async (req, res) => {
       model: getModel(aiModel),
       system: SYSTEM_PROMPT,
       messages: messages,
-      temperature: 0, // Recommended for tool calls
+      temperature: 0,
       tools: await getHttpClientTools(adcpAuth, mcpServerUrl),
-      onError: (onError) => {
-        console.log({ onError })
+      onError: ({ error }) => {
+        console.log({ onError: error })
+        res.write(JSON.stringify({
+          type: 'error',
+          error: (error?.message || String(error)) + ' ',
+        }) + '\n');
       },
       onFinish: (onFinish) => {
         console.log({ onFinish })
+        if (onFinish.text) {
+          addToContextHistory(sessionKey, 'assistant', onFinish.text);
+        }
       },
       onStepFinish: (stepResult) => {
         console.log({ onStepFinish: stepResult })
-        
-        // Build the assistant message content array for this step
-        const assistantContent = [];
-        
-        // Add text if present
-        if (stepResult.text) {
-          assistantContent.push({ type: 'text', text: stepResult.text });
-        }
-        
-        // Add tool calls if present
-        if (stepResult.toolCalls && stepResult.toolCalls.length > 0) {
-          for (const toolCall of stepResult.toolCalls) {
-            assistantContent.push({
-              type: 'tool-call',
-              toolCallId: toolCall.toolCallId,
-              toolName: toolCall.toolName,
-              input: toolCall.args ?? {}, // SDK requires 'input', fallback to empty object
-            });
-          }
-        }
-        
-        // Add assistant message to history if there's content
-        if (assistantContent.length > 0) {
-          addToContextHistory(sessionKey, { role: 'assistant', content: assistantContent });
-        }
-        
-        // Add tool results as separate tool messages
-        if (stepResult.toolResults && stepResult.toolResults.length > 0) {
-          for (const toolResult of stepResult.toolResults) {
-            addToContextHistory(sessionKey, {
-              role: 'tool',
-              content: [{
-                type: 'tool-result',
-                toolCallId: toolResult.toolCallId,
-                toolName: toolResult.toolName,
-                output: { type: 'json', value: toolResult.output ?? null },
-              }],
-            });
-          }
-        }
       },
       onAbort: (onAbort) => {
         console.log({ onAbort })
@@ -222,7 +176,7 @@ const server = createServer(async (req, res) => {
     });
 
     for await (const part of result.fullStream) {
-      res.write(JSON.stringify(part) + '\n');
+      res.write(JSON.stringify(part) + ' \n');
     }
     res.end()
 
@@ -237,14 +191,14 @@ const server = createServer(async (req, res) => {
   };
 
   const staticFile = staticFiles[req.url] || staticFiles['/'];
-  
+
   try {
     const content = await readFile(join(__dirname, staticFile.file));
     res.setHeader('Content-Type', staticFile.contentType);
     res.end(content);
   } catch (err) {
     res.statusCode = 500;
-    res.end(`Error loading ${staticFile.file}`);
+    res.end(`Error loading ${ staticFile.file }`);
   }
 });
 
