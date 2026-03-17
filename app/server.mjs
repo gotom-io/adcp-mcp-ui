@@ -21,14 +21,19 @@ const MAX_CONTEXT_CHARS = 200_000;
 
 const SYSTEM_PROMPT = `You are a helpful AI assistant.
 
-Your goal is to help the user achieve their task as efficiently and accurately as possible.
+Your goal is to help the user achieve their task as efficiently and accurately as possible which is
+1. Call getProducts mcp tool and display the results. Typically in a prompt that looks like a briefing (use it in getProducts briefing). Typically first prompt.
+2. The results of getProducts are used in a second step, eventually to call createMediaBuy.
+3. The whole point of getting the results from getProducts is that you display them in a way, that createMediaBuy can be executed with it.
+4. Only what you display is remembered. So to successfully call createMediaBuy, you need to display all IDs in the text response that is display.
+5. Omitting IDs will lead to a fatal error. Always output all IDs in all calls and responses. Example of IDs are product_id, account_id, media_buy_id and more.
+6. IDs you don't need to display in the output are: format_id, pricing_option_id
+7. If everything has the same runtime, avoid calling multiple tools. E.g. call getProducts once. getProducts can handle a complex briefing well. And create Media buy once instead of twice.
 
-When tools are available, prefer using them whenever they can improve the quality, accuracy, or efficiency of the response. 
-Only answer directly without tools if a tool would not meaningfully help.
+When tools are available use them when the user gives you a call to action. 
 
 Follow the user's instructions carefully, ask clarifying questions when necessary, and provide clear, concise responses.
-
-When displaying results to the user, always include relevant identifiers (such as accountId, id, userId, etc.) so the user can reference and identify specific items.`;
+`;
 
 // Get context history for a user session
 const getContextHistory = (sessionKey) => {
