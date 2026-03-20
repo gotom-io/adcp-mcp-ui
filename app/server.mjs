@@ -43,13 +43,13 @@ Follow the user's instructions carefully, ask clarifying questions when necessar
 When displaying results to the user, always include relevant identifiers (such as accountId, id, userId, etc.) so the user can reference and identify specific items.`;
 
 // Get context history for a user session
-const getContextHistory = (sessionKey) => {
-  return contextHistoryCache.get(sessionKey) || [];
+const getContextHistory = (cacheKey) => {
+  return contextHistoryCache.get(cacheKey) || [];
 };
 
 // Add message to context history and trim if needed
-const addToContextHistory = (sessionKey, role, content) => {
-  const history = getContextHistory(sessionKey);
+const addToContextHistory = (cacheKey, role, content) => {
+  const history = getContextHistory(cacheKey);
   history.push({ role, content });
 
   // Trim history if total chars exceed limit (simple: just remove oldest messages)
@@ -62,13 +62,13 @@ const addToContextHistory = (sessionKey, role, content) => {
     messagesRemoved++;
   }
 
-  contextHistoryCache.set(sessionKey, history);
+  contextHistoryCache.set(cacheKey, history);
   return { history, messagesRemoved };
 };
 
-// Clear context history for a session
-const clearContextHistory = (sessionKey) => {
-  contextHistoryCache.del(sessionKey);
+
+const clearContextHistory = (cacheKey) => {
+  contextHistoryCache.del(cacheKey);
 };
 
 const getModel = (modelString) => {
@@ -83,22 +83,23 @@ const getModel = (modelString) => {
   }
 };
 
-const getHttpClientTools = async function(adcpAuth, mcpServerUrl) {
-  const cacheKey = `${ adcpAuth }:${ mcpServerUrl }`;
+const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl) {
   let clientTools = httpClientToolsCache.get(cacheKey);
-  if (!clientTools) {
-    const httpClient = await createMCPClient({
-      transport: {
-        type: 'http',
-        url: mcpServerUrl,
-        headers: {
-          'x-adcp-auth': adcpAuth,
-          'Authorization': `Basic ${ Buffer.from(`${ process.env.BASIC_AUTH_USER }:${ process.env.BASIC_AUTH_PASS }`).toString('base64') }`
-        },
-      },
-    });
-    clientTools = await httpClient.tools();
+  if (clientTools) {
+    return clientTools;
   }
+
+  const httpClient = await createMCPClient({
+    transport: {
+      type: 'http',
+      url: mcpServerUrl,
+      headers: {
+        'x-adcp-auth': adcpAuth,
+        'Authorization': `Basic ${ Buffer.from(`${ process.env.BASIC_AUTH_USER }:${ process.env.BASIC_AUTH_PASS }`).toString('base64') }`
+      },
+    },
+  });
+  clientTools = await httpClient.tools();
   httpClientToolsCache.set(cacheKey, clientTools);
   return clientTools;
 }
@@ -140,18 +141,18 @@ const server = createServer(async (req, res) => {
     console.log({ body })
 
     // Session key based on auth, MCP server, and unique session ID
-    const sessionKey = `${ adcpAuth }:${ mcpServerUrl }:${ sessionId }`;
+    const cacheKey = `${ adcpAuth }:${ mcpServerUrl }:${ sessionId }`;
 
     // Handle clear history command
     if (body.clearHistory) {
-      clearContextHistory(sessionKey);
+      clearContextHistory(cacheKey);
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ success: true, message: 'History cleared' }));
       return;
     }
 
     // Add user message to history and get full context
-    const { history: messages, messagesRemoved } = addToContextHistory(sessionKey, 'user', body.prompt);
+    const { history: messages, messagesRemoved } = addToContextHistory(cacheKey, 'user', body.prompt);
 
     // If messages were truncated, send a warning to the client first
     if (messagesRemoved > 0) {
@@ -167,7 +168,7 @@ const server = createServer(async (req, res) => {
       system: SYSTEM_PROMPT,
       messages: messages,
       temperature: 0,
-      tools: await getHttpClientTools(adcpAuth, mcpServerUrl),
+      tools: await getHttpClientTools(cacheKey, adcpAuth, mcpServerUrl),
       onError: ({ error }) => {
         console.log({ onError: error })
         res.write(JSON.stringify({
@@ -178,7 +179,7 @@ const server = createServer(async (req, res) => {
       onFinish: (onFinish) => {
         console.log({ onFinish })
         if (onFinish.text) {
-          addToContextHistory(sessionKey, 'assistant', onFinish.text);
+          addToContextHistory(cacheKey, 'assistant', onFinish.text);
         }
       },
       onStepFinish: (stepResult) => {
