@@ -485,6 +485,72 @@ select.input-field option {
   margin: 2rem 0;
 }
 
+/* Thinking block */
+.thinking-block {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.thinking-block summary {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.thinking-block summary:hover {
+  color: var(--text-secondary);
+}
+
+.thinking-block summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform var(--transition-fast);
+}
+
+.thinking-block[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.thinking-block summary::-webkit-details-marker {
+  display: none;
+}
+
+.thinking-content {
+  padding: 1rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.thinking-content p {
+  color: var(--text-muted);
+}
+
+/* Thinking indicator wrapper */
+.thinking-indicator-wrapper {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* Loading indicator */
 .loading-indicator {
   display: flex;
@@ -492,7 +558,10 @@ select.input-field option {
   gap: 0.75rem;
   color: var(--text-muted);
   font-size: 0.85rem;
-  padding: 0.5rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
 }
 
 .loading-dots {
