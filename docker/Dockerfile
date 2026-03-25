@@ -1,7 +1,10 @@
 FROM node:lts
 
-COPY app/ /app/
-RUN cd /app && npm ci
+WORKDIR /app
+
+COPY app/ .
+
+RUN npm ci
 
 EXPOSE 3000
 
