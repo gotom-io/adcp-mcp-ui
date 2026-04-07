@@ -235,7 +235,9 @@ const server = createServer(async (req, res) => {
     '/app.js': { file: 'app.js', contentType: 'application/javascript' },
   };
 
-  const staticFile = staticFiles[req.url];
+  // Strip query string for static file matching
+  const urlPath = req.url.split('?')[0];
+  const staticFile = staticFiles[urlPath];
 
   if(staticFile){
     try {
