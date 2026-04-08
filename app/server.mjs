@@ -115,7 +115,64 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl) {
   return clientTools;
 }
 
+// Helper to parse cookies from request
+const parseCookies = (req) => {
+  const cookieHeader = req.headers.cookie || '';
+  const cookies = {};
+  cookieHeader.split(';').forEach(cookie => {
+    const [name, ...rest] = cookie.trim().split('=');
+    if (name) {
+      cookies[name] = decodeURIComponent(rest.join('='));
+    }
+  });
+  return cookies;
+};
+
+// Helper to create HttpOnly cookie string
+const isLocal = process.env.GOTOM_ENV === 'local';
+const createSecureCookie = (name, value, maxAge = 31536000) => {
+  const secureFlag = isLocal ? '' : '; Secure';
+  return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly${secureFlag}; SameSite=Strict`;
+};
+
 const server = createServer(async (req, res) => {
+  // GET /api/settings - Read settings from HttpOnly cookies
+  if (req.method === 'GET' && req.url === '/api/settings') {
+    const cookies = parseCookies(req);
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
+      adcp_auth: cookies.adcp_auth || '',
+      mcp_server: cookies.mcp_server || '',
+      ai_model: cookies.ai_model || '',
+    }));
+    return;
+  }
+
+  // POST /api/settings - Save settings as HttpOnly cookies
+  if (req.method === 'POST' && req.url === '/api/settings') {
+    const body = await new Promise((resolve) => {
+      let data = '';
+      req.on('data', chunk => data += chunk);
+      req.on('end', () => resolve(JSON.parse(data)));
+    });
+
+    const cookiesToSet = [];
+    if (body.adcp_auth !== undefined) {
+      cookiesToSet.push(createSecureCookie('adcp_auth', body.adcp_auth));
+    }
+    if (body.mcp_server !== undefined) {
+      cookiesToSet.push(createSecureCookie('mcp_server', body.mcp_server));
+    }
+    if (body.ai_model !== undefined) {
+      cookiesToSet.push(createSecureCookie('ai_model', body.ai_model));
+    }
+
+    res.setHeader('Set-Cookie', cookiesToSet);
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ success: true }));
+    return;
+  }
+
   if ( req.method === 'GET' && req.url === '/' ) {
     const template = fs.readFileSync("./index.template.html", "utf8")
     let chatConfig =  {};
@@ -124,7 +181,7 @@ const server = createServer(async (req, res) => {
     }
 
     if(! chatConfig.serverChoices){
-      chatConfig.serverChoices = [{url: "https://dev-demo-mcp.gotom.io", label: "Dev Demo"}]
+      chatConfig.serverChoices = [{url: "https://dev-demo-mcp.gotom.io", label: "Dev Demo"},{url: "https://dev-goldbach-mcp.gotom.io", label: "Dev Goldbach"}]
     }
 
     const html = template
@@ -192,39 +249,65 @@ const server = createServer(async (req, res) => {
       }) + '\n');
     }
 
-    const result = await streamText({
-      model: getModel(aiModel),
-      system: SYSTEM_PROMPT,
-      messages: messages,
-      temperature: 0,
-      tools: await getHttpClientTools(cacheKey, adcpAuth, mcpServerUrl),
-      onError: ({ error }) => {
-        console.log({ onError: error })
-        res.write(JSON.stringify({
-          type: 'error',
-          error: (error?.message || String(error)) + ' ',
-        }) + '\n');
-      },
-      onFinish: (onFinish) => {
-        console.log({ onFinish })
-        if (onFinish.text) {
-          addToContextHistory(cacheKey, 'assistant', onFinish.text);
-        }
-      },
-      onStepFinish: (stepResult) => {
-        console.log({ onStepFinish: stepResult })
-      },
-      onAbort: (onAbort) => {
-        console.log({ onAbort })
-      },
-      maxSteps: 10,
-      stopWhen: stepCountIs(10),
-    });
-
-    for await (const part of result.fullStream) {
-      res.write(JSON.stringify(part) + ' \n');
+    let tools;
+    try {
+      tools = await getHttpClientTools(cacheKey, adcpAuth, mcpServerUrl);
+    } catch (err) {
+      console.error('Failed to connect to MCP server:', err);
+      res.statusCode = 502;
+      res.setHeader('Content-Type', 'application/json');
+      const errorMessage = err.cause?.code === 'ENOTFOUND'
+        ? `Cannot reach MCP server: ${err.cause.hostname} not found`
+        : `Failed to connect to MCP server: ${err.message || String(err)}`;
+      res.end(JSON.stringify({ error: errorMessage }));
+      return;
     }
-    res.end()
+
+    try {
+      const result = await streamText({
+        model: getModel(aiModel),
+        system: SYSTEM_PROMPT,
+        messages: messages,
+        temperature: 0,
+        tools,
+        onError: ({ error }) => {
+          console.log({ onError: error })
+          res.write(JSON.stringify({
+            type: 'error',
+            error: (error?.message || String(error)) + ' ',
+          }) + '\n');
+        },
+        onFinish: (onFinish) => {
+          console.log({ onFinish })
+          if (onFinish.text) {
+            addToContextHistory(cacheKey, 'assistant', onFinish.text);
+          }
+        },
+        onStepFinish: (stepResult) => {
+          console.log({ onStepFinish: stepResult })
+        },
+        onAbort: (onAbort) => {
+          console.log({ onAbort })
+        },
+        maxSteps: 10,
+        stopWhen: stepCountIs(10),
+      });
+
+      for await (const part of result.fullStream) {
+        res.write(JSON.stringify(part) + ' \n');
+      }
+      res.end();
+    } catch (err) {
+      console.error('Error during streaming:', err);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: `Server error: ${err.message || String(err)}` }));
+      } else {
+        res.write(JSON.stringify({ type: 'error', error: err.message || String(err) }) + '\n');
+        res.end();
+      }
+    }
 
     return;
   }
@@ -248,6 +331,9 @@ const server = createServer(async (req, res) => {
       res.statusCode = 500;
       res.end(`Error loading ${staticFile.file}`);
     }
+  } else {
+    res.statusCode = 404;
+    res.end('Not Found');
   }
 });
 

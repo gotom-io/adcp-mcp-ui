@@ -17,34 +17,40 @@ createApp({
     // Generate unique session ID for this browser tab
     const sessionId = crypto.randomUUID();
 
-    const getCookie = (name) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop().split(';').shift();
-      return '';
-    };
-
-    const saveCookie = () => {
-      document.cookie = `adcp_auth=${authToken.value}; path=/; max-age=31536000`;
-    };
-
-    const saveServerCookie = () => {
-      document.cookie = `mcp_server=${mcpServer.value}; path=/; max-age=31536000`;
-    };
-
-    const saveModelCookie = () => {
-      document.cookie = `ai_model=${aiModel.value}; path=/; max-age=31536000`;
-    };
-
-    onMounted(() => {
-      authToken.value = getCookie('adcp_auth');
-      const savedServer = getCookie('mcp_server');
-      if (savedServer) {
-        mcpServer.value = savedServer;
+    // Save a single setting via API (sets HttpOnly cookie on server)
+    const saveSetting = async (name, value) => {
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [name]: value }),
+        });
+      } catch (err) {
+        console.error('Failed to save setting:', err);
       }
-      const savedModel = getCookie('ai_model');
-      if (savedModel) {
-        aiModel.value = savedModel;
+    };
+
+    const saveCookie = () => saveSetting('adcp_auth', authToken.value);
+    const saveServerCookie = () => saveSetting('mcp_server', mcpServer.value);
+    const saveModelCookie = () => saveSetting('ai_model', aiModel.value);
+
+    // Load settings from server on mount
+    onMounted(async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const settings = await res.json();
+        if (settings.adcp_auth) {
+          authToken.value = settings.adcp_auth;
+        }
+        // Only override mcpServer if a valid saved value exists
+        if (settings.mcp_server && settings.mcp_server.trim()) {
+          mcpServer.value = settings.mcp_server;
+        }
+        if (settings.ai_model) {
+          aiModel.value = settings.ai_model;
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
       }
     });
 
