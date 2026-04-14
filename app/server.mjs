@@ -8,6 +8,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { createMCPClient } from '@ai-sdk/mcp';
 import NodeCache from 'node-cache';
 import fs from "fs"
+import { uniqid } from "./shared.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
@@ -284,6 +285,9 @@ const server = createServer(async (req, res) => {
           }
         },
         onStepFinish: (stepResult) => {
+          if (stepResult.type === 'tool') {
+            console.dir(stepResult.result, { depth: null });
+          }
           console.log({ onStepFinish: stepResult })
         },
         onAbort: (onAbort) => {
@@ -316,6 +320,7 @@ const server = createServer(async (req, res) => {
   const staticFiles = {
     '/styles.css': { file: 'styles.css', contentType: 'text/css' },
     '/app.js': { file: 'app.js', contentType: 'application/javascript' },
+    '/shared.mjs': { file: 'shared.mjs', contentType: 'application/javascript' },
   };
 
   // Strip query string for static file matching

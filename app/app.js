@@ -1,3 +1,5 @@
+import { uniqid } from "./shared.mjs";
+
 const { createApp, ref, onMounted, nextTick } = Vue;
 
 createApp({
@@ -88,6 +90,7 @@ createApp({
       'x-mcp-server': mcpServer.value,
       'x-ai-model': aiModel.value,
       'x-session-id': sessionId,
+      'x-mcp-request-id': uniqid(),
     });
 
     const clearHistory = async () => {
