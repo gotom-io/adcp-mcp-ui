@@ -285,8 +285,12 @@ const server = createServer(async (req, res) => {
           }
         },
         onStepFinish: (stepResult) => {
-          if (stepResult.type === 'tool') {
-            console.dir(stepResult.result, { depth: null });
+
+          const xMcpRequestId = stepResult?.toolResults[0]?.output?._meta['x-mcp-request-id'];
+          if(xMcpRequestId){
+            console.log("x-mcp-request-id: " + xMcpRequestId);
+          }else{
+            console.log("x-mcp-request-id: unknown");
           }
           console.log({ onStepFinish: stepResult })
         },
