@@ -14,6 +14,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
 const contextHistoryCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
 const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
+const mcpShortSessionIds = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
+const cacheKeySeparator = '___';
 
 if(process.env.MCP_SERVER_CHOICES){
   console.debug("process.env.MCP_SERVER_CHOICES:", process.env.MCP_SERVER_CHOICES);
@@ -32,6 +34,7 @@ Your goal is to help the user achieve their task as efficiently and accurately a
 7. If getProducts returns values for forecast, make sure to include it as well, be sure to name the forecast values as "available impressions". Don't mention the budget with the forecast, only the impressions.
 8. In the format_id only display the id part, leave out agent_url, width and height.
 9. Display results after displaying it in paragraphs as well in tables.
+10. Don't mix results in the table inside the same column. Don't do: Audience/Channel inside the same column. Or Audience/Publisher. Make separate columns.
 
 When tools are available use them when the user gives you a call to action. 
 
@@ -46,7 +49,7 @@ When tools are available use them when the user gives you a call to action.
 **Never call a tool to fetch data you already have.** If a previous tool call returned information needed for your current task, use that information directly instead of calling the tool again.
 
 For example:
-- If you already fetched a list of Product ID's, don't fetch it again to find a specific product id.
+- If you already fetched a list of Product IDs, don't fetch it again to find a specific product id.
 - If you already fetched a customer account id, don't fetch it again to find the customer.
 - If you already retrieved account details, reuse those details instead of re-fetching
 - If the user references something from a previous response, use the IDs/data from that response
@@ -64,10 +67,20 @@ const addToContextHistory = (cacheKey, role, content) => {
   const history = getContextHistory(cacheKey);
   history.push({ role, content });
 
-  // Trim history if total chars exceed limit (simple: just remove oldest messages)
-  let totalChars = history.reduce((sum, msg) => sum + msg.content.length, 0);
+  function countHistorySize() {
+    return history.reduce((sum, msg) => sum + msg.content.length, 0);
+  }
+
+// Trim history if total chars exceed limit (simple: just remove oldest messages)
+  let totalChars = countHistorySize();
   let messagesRemoved = 0;
 
+  if(totalChars > MAX_CONTEXT_CHARS){
+    const sessionId = cacheKey.split(cacheKeySeparator)[2];
+    const xMcpSessionIdShort = getMcpSessionIdShort(sessionId);
+    history.push({role: 'assistant', content: 'xMcpSessionId: ' + xMcpSessionIdShort})
+    totalChars = countHistorySize();
+  }
   while (totalChars > MAX_CONTEXT_CHARS && history.length > 1) {
     const removed = history.shift();
     totalChars -= removed.content.length;
@@ -101,12 +114,15 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl) {
     return clientTools;
   }
 
+  const sessionId = cacheKey.split(cacheKeySeparator)[2];
+  const xMcpSessionId = getMcpSessionIdShort(sessionId);
   const httpClient = await createMCPClient({
     transport: {
       type: 'http',
       url: mcpServerUrl,
       headers: {
         'x-adcp-auth': adcpAuth,
+        'x-mcp-session-id': xMcpSessionId,
         'Authorization': `Basic ${ Buffer.from(`${ process.env.BASIC_AUTH_USER }:${ process.env.BASIC_AUTH_PASS }`).toString('base64') }`
       },
     },
@@ -135,6 +151,10 @@ const createSecureCookie = (name, value, maxAge = 31536000) => {
   const secureFlag = isLocal ? '' : '; Secure';
   return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly${secureFlag}; SameSite=Strict`;
 };
+
+function getMcpSessionIdShort(sessionId) {
+  return 'sid_' + sessionId.slice(0, 8);
+}
 
 const server = createServer(async (req, res) => {
   // GET /api/settings - Read settings from HttpOnly cookies
@@ -228,7 +248,13 @@ const server = createServer(async (req, res) => {
     console.log({ body })
 
     // Session key based on auth, MCP server, and unique session ID
-    const cacheKey = `${ adcpAuth }:${ mcpServerUrl }:${ sessionId }`;
+    const cacheKey = `${ adcpAuth }${cacheKeySeparator}${ mcpServerUrl }${cacheKeySeparator}${ sessionId }`;
+
+    const xMcpSessionIdShort = getMcpSessionIdShort(sessionId);
+    if(!mcpShortSessionIds.has(xMcpSessionIdShort)){
+      addToContextHistory(cacheKey, 'assistant', 'xMcpSessionId: ' + xMcpSessionIdShort);
+      mcpShortSessionIds.set(xMcpSessionIdShort, true);
+    }
 
     // Handle clear history command
     if (body.clearHistory) {
@@ -289,6 +315,7 @@ const server = createServer(async (req, res) => {
           const xMcpRequestId = stepResult?.toolResults[0]?.output?._meta['x-mcp-request-id'];
           if(xMcpRequestId){
             console.log("x-mcp-request-id: " + xMcpRequestId);
+            addToContextHistory(cacheKey, 'assistant', "Current xMcpRequestId: " + xMcpRequestId);
           }else{
             console.log("x-mcp-request-id: unknown");
           }
