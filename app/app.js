@@ -15,6 +15,8 @@ createApp({
     const serverChoices = ref(window.chat_config.serverChoices);
     const mcpServer = ref(serverChoices.value[0].url);
     console.log("window.chat_config", window.chat_config);
+    const showLogs = ref(false);
+    const logs = ref('');
     
     // Generate unique session ID for this browser tab
     const sessionId = crypto.randomUUID();
@@ -93,6 +95,41 @@ createApp({
       'x-mcp-request-id': uniqid(),
     });
 
+    const closeLogs = () => {
+      showLogs.value = false;
+    };
+    const fetchLogs = async () => {
+      if (loading.value) return;
+
+      error.value = '';
+      loading.value = true;
+
+      try {
+        const res = await fetch('/api/logs', {
+          method: 'GET',
+          headers: {
+            'x-adcp-auth': authToken.value,
+            'x-mcp-server': mcpServer.value,
+            'x-ai-model': aiModel.value,
+            'x-session-id': sessionId,
+          }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to fetch logs');
+        }
+
+        logs.value = JSON.stringify(data, null, 2);
+        showLogs.value = true; // 👈 open panel
+
+      } catch (err) {
+        error.value = err.message;
+      } finally {
+        loading.value = false;
+      }
+    };
     const clearHistory = async () => {
       if (loading.value) return;
       
@@ -203,6 +240,10 @@ createApp({
       adjustTextareaHeight,
       renderMarkdown,
       serverChoices,
+      logs,
+      fetchLogs,
+      showLogs,
+      closeLogs,
     };
   }
 }).mount('#app');

@@ -212,6 +212,43 @@ function getMcpSessionIdShort(sessionId) {
 }
 
 
+function getHeaderInfo(req, res) {
+  const adcpAuth = req.headers['x-adcp-auth'];
+  if ( !adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1 ) {
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication (add the API key to the .env variable VALID_ADCP_AUTH_KEYS)' }));
+    return res;
+  }
+
+  const mcpServerUrl = req.headers['x-mcp-server'];
+  if ( !mcpServerUrl ) {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'MCP server missing' }));
+    return res;
+  }
+
+  const aiModel = req.headers['x-ai-model'] || 'anthropic:claude-sonnet-4-6';
+  const sessionId = req.headers['x-session-id'];
+
+  if ( !sessionId ) {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Session ID missing' }));
+    return res;
+  }
+  return { adcpAuth, mcpServerUrl, aiModel, sessionId };
+}
+
+async function getBody(req) {
+  return await new Promise((resolve) => {
+    let data = '';
+    req.on('data', chunk => data += chunk);
+    req.on('end', () => resolve(JSON.parse(data)));
+  });
+}
+
 const server = createServer(async (req, res) => {
 
   let logger = getLogger();
@@ -230,11 +267,7 @@ const server = createServer(async (req, res) => {
 
   // POST /api/settings - Save settings as HttpOnly cookies
   if (req.method === 'POST' && req.url === '/api/settings') {
-    const body = await new Promise((resolve) => {
-      let data = '';
-      req.on('data', chunk => data += chunk);
-      req.on('end', () => resolve(JSON.parse(data)));
-    });
+    const body = await getBody(req);
 
     const cookiesToSet = [];
     if (body.adcp_auth !== undefined) {
@@ -271,39 +304,68 @@ const server = createServer(async (req, res) => {
     res.end(html)
     return;
   }
+
+  if (req.method === 'GET' && req.url === '/api/logs') {
+    const headerInfo = getHeaderInfo(req, res);
+
+    if (res === headerInfo) {
+      return; // error already sent
+    }
+
+    const { adcpAuth, mcpServerUrl, sessionId } = headerInfo;
+
+    let logger = getLogger(sessionId);
+
+    const cacheKey =
+        `${adcpAuth}${cacheKeySeparator}${mcpServerUrl}${cacheKeySeparator}${sessionId}`;
+
+    try {
+      const tools = await getHttpClientTools(
+          cacheKey,
+          adcpAuth,
+          mcpServerUrl
+      );
+
+      const getLogsTool = tools.getLogs;
+
+      if (!getLogsTool) {
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          error: 'getLogs tool not found'
+        }));
+        return;
+      }
+
+      logger.debug('Calling getLogs MCP tool');
+
+      const result = await getLogsTool.execute({});
+
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(result));
+
+    } catch (err) {
+      logger.error('Error fetching logs:', err);
+
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
+        error: err.message || String(err)
+      }));
+    }
+
+    return;
+  }
   if (req.method === 'POST' && req.url === '/api/chat') {
-    const adcpAuth = req.headers['x-adcp-auth'];
-    if (!adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1) {
-      res.statusCode = 403;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication (add the API key to the .env variable VALID_ADCP_AUTH_KEYS)' }));
-      return;
+    const headerInfo = getHeaderInfo(req, res);
+    if(res === headerInfo){
+      return res; // some error
     }
-
-    const mcpServerUrl = req.headers['x-mcp-server'];
-    if (!mcpServerUrl) {
-      res.statusCode = 400;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'MCP server missing' }));
-      return;
-    }
-
-    const aiModel = req.headers['x-ai-model'] || 'anthropic:claude-sonnet-4-6';
-    const sessionId = req.headers['x-session-id'];
-
-    if (!sessionId) {
-      res.statusCode = 400;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Session ID missing' }));
-      return;
-    }
+    const { adcpAuth, mcpServerUrl, aiModel, sessionId } = headerInfo;
     logger = getLogger(sessionId)
 
-    const body = await new Promise((resolve) => {
-      let data = '';
-      req.on('data', chunk => data += chunk);
-      req.on('end', () => resolve(JSON.parse(data)));
-    });
+    const body = await getBody(req);
 
     logger.debug({ body })
 

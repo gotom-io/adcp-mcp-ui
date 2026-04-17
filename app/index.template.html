@@ -82,6 +82,10 @@
           </svg>
           Clear Context History
         </button>
+        <!-- NEW: Get Logs Button -->
+        <button class="clear-btn logs-btn" @click="fetchLogs" :disabled="loading">
+          📄 Get Logs
+        </button>
       </div>
     </aside>
 
@@ -89,6 +93,17 @@
     <main class="main-area">
       <div class="progress-bar" :class="{ loading: loading }">
         <div class="progress"></div>
+      </div>
+      <div v-if="showLogs" class="logs-panel">
+        <div class="logs-header">
+          <div class="logs-title">Logs</div>
+
+          <button class="logs-close" @click="closeLogs">
+            ✕
+          </button>
+        </div>
+
+        <pre class="logs-output">{{ logs }}</pre>
       </div>
 
       <div class="chat-container" ref="chatContainer">
