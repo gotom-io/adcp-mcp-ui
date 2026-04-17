@@ -102,8 +102,13 @@
             ✕
           </button>
         </div>
-
-        <pre class="logs-output">{{ logs }}</pre>
+        <!-- filter input -->
+        <input
+            v-model="logFilter"
+            class="log-filter-input"
+            placeholder="Filter logs..."
+        >
+        <pre class="logs-output" v-html="highlightedLogs"></pre>
       </div>
 
       <div class="chat-container" ref="chatContainer">

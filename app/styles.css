@@ -57,6 +57,7 @@ body {
   height: 100%;
 }
 
+/** LOGS */
 .logs-header {
   display: flex;
   justify-content: space-between;
@@ -92,6 +93,18 @@ body {
   overflow-x: hidden;
   min-height: 100%;
 }
+
+.log-error {
+  color: #ff5c5c;
+  font-weight: 600;
+}
+
+.log-keyword {
+  color: #00d4a6;
+  font-weight: 600;
+}
+
+/** LOGS END */
 
 /* Sidebar */
 .sidebar {

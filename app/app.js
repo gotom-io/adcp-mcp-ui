@@ -1,6 +1,6 @@
 import { uniqid } from "./shared.mjs";
 
-const { createApp, ref, onMounted, nextTick } = Vue;
+const { createApp, ref, onMounted, nextTick, computed } = Vue;
 
 createApp({
   setup() {
@@ -17,9 +17,42 @@ createApp({
     console.log("window.chat_config", window.chat_config);
     const showLogs = ref(false);
     const logs = ref('');
-    
+    const logFilter = ref('');
     // Generate unique session ID for this browser tab
     const sessionId = crypto.randomUUID();
+
+    const highlightedLogs = computed(() => {
+      if (!logs.value) return '';
+
+      let text = logs.value;
+
+      // filter
+      if (logFilter.value.trim()) {
+        const term = logFilter.value.trim().toLowerCase();
+        console.error("term", term);
+
+        text = text
+            .split('\n')
+            .filter(line => line.toLowerCase().includes(term))
+            .join('\n');
+      }
+
+      const escapeRegExp = (str) =>
+          str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      const errorKeywords =
+          'error|warning|critical|fatal|fail|failed|failure|missing|required|not found|undefined|none|denied|refused|rejected|blocked|invalid|illegal|bad|wrong|corrupt|corrupted|broken|crash|crashed|abort|aborted|killed|segfault|panic|exception|traceback|timeout|expired|exceeded|overflow|underflow|leak|deadlock|conflict|duplicate|mismatch|unknown|unexpected|unauthorized|forbidden|unavailable|unreachable|disconnected|lost|dropped|skipped|ignored|deprecated|obsolete|insecure|vulnerable|violation|permission|readonly|locked|busy|empty|stopped|suspended|terminated|exit|quit';
+
+      const keywords =
+          'askAi|Sending to|Executing tool|Tool executed|account_id|success';
+
+      // highlight keywords
+      text = text
+          .replace(new RegExp(`(${errorKeywords})`, 'gi'), '<span class="log-error">$1</span>')
+          .replace(new RegExp(`(${keywords})`, 'gi'), '<span class="log-keyword">$1</span>');
+
+      return text;
+    });
 
     // Save a single setting via API (sets HttpOnly cookie on server)
     const saveSetting = async (name, value) => {
@@ -240,10 +273,11 @@ createApp({
       adjustTextareaHeight,
       renderMarkdown,
       serverChoices,
-      logs,
+      highlightedLogs,
       fetchLogs,
       showLogs,
       closeLogs,
+      logFilter,
     };
   }
 }).mount('#app');
