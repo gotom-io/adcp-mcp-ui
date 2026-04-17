@@ -8,17 +8,78 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { createMCPClient } from '@ai-sdk/mcp';
 import NodeCache from 'node-cache';
 import fs from "fs"
-import { uniqid } from "./shared.mjs";
+import path from 'node:path';
+import * as util from "node:util";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
+const loggerCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
 const contextHistoryCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
-const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
-const mcpShortSessionIds = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
 const cacheKeySeparator = '___';
+const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
+const LOG_FILE = process.env.LOG_FILE || '/app/adcp-mcp-ui-logs/server.log';
+fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
+const logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
+const NO_ID_FOUND = '-';
+
+const getLogger = (sessionId = NO_ID_FOUND) => {
+  if(loggerCache.has(sessionId)){
+    return loggerCache.get(sessionId);
+  }
+
+  const logger = {
+    requestId: NO_ID_FOUND,
+    sessionId,
+
+    setMcpRequestId(id) {
+      this.requestId = id;
+    },
+
+    error: (...args) => write('ERROR', ...args),
+    warn: (...args) => write('WARN', ...args),
+    info: (...args) => write('INFO', ...args),
+    log: (...args) => write('LOG', ...args),
+    debug: (...args) => write('DEBUG', ...args),
+  };
+
+  const write = (level, ...args) => {
+    const messageStdout = args.map(arg =>
+        typeof arg === 'object' ? util.inspect(arg, { depth: 5, colors: false, compact: false }) : String(arg)
+    ).join(' ');
+    const messageLog = args.map(arg =>
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' ');
+
+    const shortSessionId = logger.sessionId !== NO_ID_FOUND ? getMcpSessionIdShort(logger.sessionId) : NO_ID_FOUND;
+    const lineStd =
+        `[${new Date().toISOString()}] ` +
+        `[${level}] ` +
+        `[sessionId:${shortSessionId}] ` +
+        `[requestId:${logger.requestId}] ` +
+        `${messageStdout}\n`;
+    const lineLog =
+        `[${new Date().toISOString()}] ` +
+        `[${level}] ` +
+        `[sessionId:${shortSessionId}] ` +
+        `[requestId:${logger.requestId}] ` +
+        `${messageLog}\n`;
+
+    if (level === 'ERROR') {
+      process.stderr.write(lineStd);
+    } else {
+      process.stdout.write(lineStd);
+    }
+
+    logStream.write(lineLog);
+  };
+
+  loggerCache.set(sessionId, logger);
+  return logger;
+};
+
 
 if(process.env.MCP_SERVER_CHOICES){
-  console.debug("process.env.MCP_SERVER_CHOICES:", process.env.MCP_SERVER_CHOICES);
+  getLogger().debug("process.env.MCP_SERVER_CHOICES:", process.env.MCP_SERVER_CHOICES);
 }
 const MAX_CONTEXT_CHARS = 200_000;
 
@@ -75,12 +136,6 @@ const addToContextHistory = (cacheKey, role, content) => {
   let totalChars = countHistorySize();
   let messagesRemoved = 0;
 
-  if(totalChars > MAX_CONTEXT_CHARS){
-    const sessionId = cacheKey.split(cacheKeySeparator)[2];
-    const xMcpSessionIdShort = getMcpSessionIdShort(sessionId);
-    history.push({role: 'assistant', content: 'xMcpSessionId: ' + xMcpSessionIdShort})
-    totalChars = countHistorySize();
-  }
   while (totalChars > MAX_CONTEXT_CHARS && history.length > 1) {
     const removed = history.shift();
     totalChars -= removed.content.length;
@@ -156,7 +211,11 @@ function getMcpSessionIdShort(sessionId) {
   return 'sid_' + sessionId.slice(0, 8);
 }
 
+
 const server = createServer(async (req, res) => {
+
+  let logger = getLogger();
+  logger.setMcpRequestId(NO_ID_FOUND);
   // GET /api/settings - Read settings from HttpOnly cookies
   if (req.method === 'GET' && req.url === '/api/settings') {
     const cookies = parseCookies(req);
@@ -238,6 +297,7 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: 'Session ID missing' }));
       return;
     }
+    logger = getLogger(sessionId)
 
     const body = await new Promise((resolve) => {
       let data = '';
@@ -245,16 +305,14 @@ const server = createServer(async (req, res) => {
       req.on('end', () => resolve(JSON.parse(data)));
     });
 
-    console.log({ body })
+    logger.debug({ body })
 
     // Session key based on auth, MCP server, and unique session ID
     const cacheKey = `${ adcpAuth }${cacheKeySeparator}${ mcpServerUrl }${cacheKeySeparator}${ sessionId }`;
 
-    const xMcpSessionIdShort = getMcpSessionIdShort(sessionId);
-    if(!mcpShortSessionIds.has(xMcpSessionIdShort)){
-      addToContextHistory(cacheKey, 'assistant', 'xMcpSessionId: ' + xMcpSessionIdShort);
-      mcpShortSessionIds.set(xMcpSessionIdShort, true);
-    }
+    // we generously always write the cacke key to context history even though it doesnt change.
+    // This simplifies caching and clearing of context history
+    addToContextHistory(cacheKey, 'assistant', 'xMcpSessionId: ' + getMcpSessionIdShort(sessionId));
 
     // Handle clear history command
     if (body.clearHistory) {
@@ -280,7 +338,7 @@ const server = createServer(async (req, res) => {
     try {
       tools = await getHttpClientTools(cacheKey, adcpAuth, mcpServerUrl);
     } catch (err) {
-      console.error('Failed to connect to MCP server:', err);
+      logger.error('Failed to connect to MCP server:', err);
       res.statusCode = 502;
       res.setHeader('Content-Type', 'application/json');
       const errorMessage = err.cause?.code === 'ENOTFOUND'
@@ -298,14 +356,14 @@ const server = createServer(async (req, res) => {
         temperature: 0,
         tools,
         onError: ({ error }) => {
-          console.log({ onError: error })
+          logger.debug({ onError: error })
           res.write(JSON.stringify({
             type: 'error',
             error: (error?.message || String(error)) + ' ',
           }) + '\n');
         },
         onFinish: (onFinish) => {
-          console.log({ onFinish })
+          logger.debug({ onFinish })
           if (onFinish.text) {
             addToContextHistory(cacheKey, 'assistant', onFinish.text);
           }
@@ -314,15 +372,16 @@ const server = createServer(async (req, res) => {
 
           const xMcpRequestId = stepResult?.toolResults[0]?.output?._meta['x-mcp-request-id'];
           if(xMcpRequestId){
-            console.log("x-mcp-request-id: " + xMcpRequestId);
+            logger.setMcpRequestId(xMcpRequestId); //  notice that this is actually a bit too late, some logs are missed. But it's currently a compromise
+            logger.log("x-mcp-request-id: " + xMcpRequestId);
             addToContextHistory(cacheKey, 'assistant', "Current xMcpRequestId: " + xMcpRequestId);
           }else{
-            console.log("x-mcp-request-id: unknown");
+            logger.log("x-mcp-request-id: unknown");
           }
-          console.log({ onStepFinish: stepResult })
+          logger.debug({ onStepFinish: stepResult })
         },
         onAbort: (onAbort) => {
-          console.log({ onAbort })
+          logger.debug({ onAbort })
         },
         maxSteps: 10,
         stopWhen: stepCountIs(10),
@@ -333,7 +392,7 @@ const server = createServer(async (req, res) => {
       }
       res.end();
     } catch (err) {
-      console.error('Error during streaming:', err);
+      logger.error('Error during streaming:', err);
       if (!res.headersSent) {
         res.statusCode = 500;
         res.setHeader('Content-Type', 'application/json');
@@ -375,5 +434,5 @@ const server = createServer(async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${ PORT }`);
+  getLogger().log(`Server running at http://localhost:${ PORT }`);
 });
