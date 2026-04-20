@@ -24,21 +24,19 @@ createApp({
     const highlightedLogs = computed(() => {
       if (!logs.value) return '';
 
-      let text = logs.value;
+      let logsVal = logs.value; //e.g. ['row1 blabla', 'row2 blabla']
 
       // filter
       if (logFilter.value.trim()) {
         const term = logFilter.value.trim().toLowerCase();
         console.error("term", term);
 
-        text = text
-            .split('\n')
+        logsVal = logsVal
             .filter(line => line.toLowerCase().includes(term))
             .join('\n');
+      }else{
+        logsVal = logsVal.join('\n');
       }
-
-      const escapeRegExp = (str) =>
-          str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
       const errorKeywords =
           'error|warning|critical|fatal|fail|failed|failure|missing|required|not found|undefined|none|denied|refused|rejected|blocked|invalid|illegal|bad|wrong|corrupt|corrupted|broken|crash|crashed|abort|aborted|killed|segfault|panic|exception|traceback|timeout|expired|exceeded|overflow|underflow|leak|deadlock|conflict|duplicate|mismatch|unknown|unexpected|unauthorized|forbidden|unavailable|unreachable|disconnected|lost|dropped|skipped|ignored|deprecated|obsolete|insecure|vulnerable|violation|permission|readonly|locked|busy|empty|stopped|suspended|terminated|exit|quit';
@@ -47,11 +45,11 @@ createApp({
           'askAi|Sending to|Executing tool|Tool executed|account_id|success';
 
       // highlight keywords
-      text = text
+      logsVal = logsVal
           .replace(new RegExp(`(${errorKeywords})`, 'gi'), '<span class="log-error">$1</span>')
           .replace(new RegExp(`(${keywords})`, 'gi'), '<span class="log-keyword">$1</span>');
 
-      return text;
+      return logsVal;
     });
 
     // Save a single setting via API (sets HttpOnly cookie on server)
@@ -131,7 +129,7 @@ createApp({
     const closeLogs = () => {
       showLogs.value = false;
     };
-    const fetchLogs = async () => {
+    const fetchLogs = async (text, reviver) => {
       if (loading.value) return;
 
       error.value = '';
@@ -154,8 +152,8 @@ createApp({
           throw new Error(data.error || 'Failed to fetch logs');
         }
 
-        logs.value = JSON.stringify(data, null, 2);
-        showLogs.value = true; // 👈 open panel
+        logs.value = data?.structuredContent;
+        showLogs.value = true; // open logs panel
 
       } catch (err) {
         error.value = err.message;
