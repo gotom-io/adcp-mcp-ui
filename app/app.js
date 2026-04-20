@@ -18,13 +18,14 @@ createApp({
     const showLogs = ref(false);
     const logs = ref('');
     const logFilter = ref('');
+    const logSearchQuery = ref('');
     // Generate unique session ID for this browser tab
     const sessionId = crypto.randomUUID();
 
     const highlightedLogs = computed(() => {
       if (!logs.value) return '';
 
-      let logsVal = logs.value; //e.g. ['row1 blabla', 'row2 blabla']
+      let logsVal = Array.isArray(logs.value) ? logs.value : []; //e.g. ['row1 blabla', 'row2 blabla']
 
       // filter
       if (logFilter.value.trim()) {
@@ -129,6 +130,37 @@ createApp({
     const closeLogs = () => {
       showLogs.value = false;
     };
+    const searchLogs = async () => {
+      if (!logSearchQuery.value.trim() || loading.value) return;
+
+      error.value = '';
+      loading.value = true;
+
+      try {
+        const params = new URLSearchParams({
+          query: logSearchQuery.value.trim()
+        });
+
+        const res = await fetch(`/api/logs?${params.toString()}`, {
+          method: 'GET',
+          headers: getRequestHeaders()
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to search logs');
+        }
+
+        logs.value = data?.structuredContent || [];
+        showLogs.value = true;
+
+      } catch (err) {
+        error.value = err.message;
+      } finally {
+        loading.value = false;
+      }
+    };
     const fetchLogs = async (text, reviver) => {
       if (loading.value) return;
 
@@ -138,12 +170,7 @@ createApp({
       try {
         const res = await fetch('/api/logs', {
           method: 'GET',
-          headers: {
-            'x-adcp-auth': authToken.value,
-            'x-mcp-server': mcpServer.value,
-            'x-ai-model': aiModel.value,
-            'x-session-id': sessionId,
-          }
+          headers: getRequestHeaders(),
         });
 
         const data = await res.json();
@@ -276,6 +303,8 @@ createApp({
       showLogs,
       closeLogs,
       logFilter,
+      logSearchQuery,
+      searchLogs,
     };
   }
 }).mount('#app');

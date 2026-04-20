@@ -305,12 +305,15 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'GET' && req.url === '/api/logs') {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (req.method === 'GET' && url.pathname === '/api/logs') {
     const headerInfo = getHeaderInfo(req, res);
 
     if (res === headerInfo) {
       return; // error already sent
     }
+    const query = url.searchParams.get('query') || '';
 
     const { adcpAuth, mcpServerUrl, sessionId } = headerInfo;
 
@@ -339,7 +342,7 @@ const server = createServer(async (req, res) => {
 
       logger.debug('Calling getLogs MCP tool');
 
-      const result = await getLogsTool.execute({});
+      const result = await getLogsTool.execute({searchString: query});
 
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');

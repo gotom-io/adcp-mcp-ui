@@ -106,8 +106,25 @@
         <input
             v-model="logFilter"
             class="log-filter-input"
-            placeholder="Filter logs..."
+            placeholder="Filter logs locally..."
         >
+
+        <!-- backend search -->
+        <div class="logs-control-group">
+          <input
+              v-model="logSearchQuery"
+              class="log-filter-input"
+              placeholder="Search logs on server..."
+              @keydown.enter="searchLogs"
+          >
+          <button
+              class="logs-action-btn"
+              @click="searchLogs"
+              :disabled="loading || !logSearchQuery"
+          >
+            Search Logs
+          </button>
+        </div>
         <pre class="logs-output" v-html="highlightedLogs"></pre>
       </div>
 
