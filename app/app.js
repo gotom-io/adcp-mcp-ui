@@ -1,4 +1,4 @@
-import { uniqid } from "./shared.mjs";
+import { getMcpSessionIdShort } from "./shared.mjs";
 
 const { createApp, ref, onMounted, nextTick, computed } = Vue;
 
@@ -18,9 +18,10 @@ createApp({
     const showLogs = ref(false);
     const logs = ref('');
     const logFilter = ref('');
-    const logSearchQuery = ref('');
-    // Generate unique session ID for this browser tab
     const sessionId = crypto.randomUUID();
+    const mcpSessionId = getMcpSessionIdShort(sessionId);
+    const logSearchQuery = ref(mcpSessionId);
+    // Generate unique session ID for this browser tab
 
     const highlightedLogs = computed(() => {
       if (!logs.value) return '';
@@ -124,14 +125,13 @@ createApp({
       'x-mcp-server': mcpServer.value,
       'x-ai-model': aiModel.value,
       'x-session-id': sessionId,
-      'x-mcp-request-id': uniqid(),
     });
 
     const closeLogs = () => {
       showLogs.value = false;
     };
     const searchLogs = async () => {
-      if (!logSearchQuery.value.trim() || loading.value) return;
+      if (loading.value) return;
 
       error.value = '';
       loading.value = true;
@@ -154,33 +154,6 @@ createApp({
 
         logs.value = data?.structuredContent || [];
         showLogs.value = true;
-
-      } catch (err) {
-        error.value = err.message;
-      } finally {
-        loading.value = false;
-      }
-    };
-    const fetchLogs = async (text, reviver) => {
-      if (loading.value) return;
-
-      error.value = '';
-      loading.value = true;
-
-      try {
-        const res = await fetch('/api/logs', {
-          method: 'GET',
-          headers: getRequestHeaders(),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to fetch logs');
-        }
-
-        logs.value = data?.structuredContent;
-        showLogs.value = true; // open logs panel
 
       } catch (err) {
         error.value = err.message;
@@ -279,7 +252,7 @@ createApp({
       }
     };
 
-    return { 
+    return {
       authToken,
       mcpServer,
       aiModel,
@@ -299,12 +272,12 @@ createApp({
       renderMarkdown,
       serverChoices,
       highlightedLogs,
-      fetchLogs,
       showLogs,
       closeLogs,
       logFilter,
       logSearchQuery,
       searchLogs,
+      mcpSessionId,
     };
   }
 }).mount('#app');

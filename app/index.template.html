@@ -83,7 +83,7 @@
           Clear Context History
         </button>
         <!-- NEW: Get Logs Button -->
-        <button class="clear-btn logs-btn" @click="fetchLogs" :disabled="loading">
+        <button class="clear-btn logs-btn" @click="showLogs = true" :disabled="loading">
           📄 Get Logs
         </button>
       </div>
@@ -95,35 +95,40 @@
         <div class="progress"></div>
       </div>
       <div v-if="showLogs" class="logs-panel">
-        <div class="logs-header">
-          <div class="logs-title">Logs</div>
+        <div class="logs-actions">
+          <div class="logs-actions-header">
+            <div class="logs-title">Logs</div>
 
-          <button class="logs-close" @click="closeLogs">
-            ✕
-          </button>
-        </div>
-        <!-- filter input -->
-        <input
-            v-model="logFilter"
-            class="log-filter-input"
-            placeholder="Filter logs locally..."
-        >
-
-        <!-- backend search -->
-        <div class="logs-control-group">
+            <button class="logs-close" @click="closeLogs">
+              ✕
+            </button>
+          </div>
+          <div class="logs-meta">Your short MCP session ID: <span class="log-keyword">{{ mcpSessionId }}</span></div>
+          <!-- backend search -->
+          <div class="logs-control-group">
+            <div class="log-filter-input-info">
+              Search (regex) logs on server, leave empty for most recent
+            </div>
+            <input
+                v-model="logSearchQuery"
+                class="log-filter-input"
+                placeholder="Search logs on server"
+                @keydown.enter="searchLogs"
+            >
+            <button
+                class="logs-action-btn"
+                @click="searchLogs"
+                :disabled="loading"
+            >
+              Search Logs
+            </button>
+          </div>
+          <!-- filter input -->
           <input
-              v-model="logSearchQuery"
+              v-model="logFilter"
               class="log-filter-input"
-              placeholder="Search logs on server..."
-              @keydown.enter="searchLogs"
+              placeholder="Filter logs locally..."
           >
-          <button
-              class="logs-action-btn"
-              @click="searchLogs"
-              :disabled="loading || !logSearchQuery"
-          >
-            Search Logs
-          </button>
         </div>
         <pre class="logs-output" v-html="highlightedLogs"></pre>
       </div>

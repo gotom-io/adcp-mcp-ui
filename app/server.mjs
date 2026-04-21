@@ -10,6 +10,7 @@ import NodeCache from 'node-cache';
 import fs from "fs"
 import path from 'node:path';
 import * as util from "node:util";
+import { getMcpSessionIdShort } from "./shared.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
@@ -207,10 +208,6 @@ const createSecureCookie = (name, value, maxAge = 31536000) => {
   return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly${secureFlag}; SameSite=Strict`;
 };
 
-function getMcpSessionIdShort(sessionId) {
-  return 'sid_' + sessionId.slice(0, 8);
-}
-
 
 function getHeaderInfo(req, res) {
   const adcpAuth = req.headers['x-adcp-auth'];
@@ -342,7 +339,7 @@ const server = createServer(async (req, res) => {
 
       logger.debug('Calling getLogs MCP tool');
 
-      const result = await getLogsTool.execute({searchString: query});
+      const result = await getLogsTool.execute({searchString: query, maxLinesReturned: 2000});
 
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');

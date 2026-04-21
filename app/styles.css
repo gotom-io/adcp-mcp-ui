@@ -58,13 +58,26 @@ body {
 }
 
 /** LOGS */
-.logs-header {
+.logs-actions {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  background: #0f172a;
+  z-index: 10;
+}
+.logs-actions-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
 }
-
+.logs-meta{
+  font-size: 0.75em;
+  margin-bottom: 5px;
+}
+.log-filter-input-info{
+  font-size: 0.75em;
+}
 .logs-close {
   background: transparent;
   border: none;
@@ -76,11 +89,10 @@ body {
   color: white;
 }
 .logs-output {
+  margin-top: 10px;
   font-size: 11px;
   white-space: pre-wrap;
   word-break: break-word;
-
-  margin: 0;
 }
 
 .logs-panel {
