@@ -57,6 +57,67 @@ body {
   height: 100%;
 }
 
+/** LOGS */
+.logs-actions {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  background: #0f172a;
+  z-index: 10;
+}
+.logs-actions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.logs-meta{
+  font-size: 0.75em;
+  margin-bottom: 5px;
+}
+.log-filter-input-info{
+  font-size: 0.75em;
+}
+.logs-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 24px;
+}
+.logs-close:hover {
+  color: white;
+}
+.logs-output {
+  margin-top: 10px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.logs-panel {
+  margin-top: 10px;
+  padding: 10px;
+  background: #0f172a;
+  color: #94a3b8;
+  border-radius: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 100%;
+}
+
+.log-error {
+  color: #ff5c5c;
+  font-weight: 600;
+}
+
+.log-keyword {
+  color: #00d4a6;
+  font-weight: 600;
+}
+
+/** LOGS END */
+
 /* Sidebar */
 .sidebar {
   width: 300px;
