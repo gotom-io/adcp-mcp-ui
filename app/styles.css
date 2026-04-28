@@ -57,67 +57,6 @@ body {
   height: 100%;
 }
 
-/** LOGS */
-.logs-actions {
-  position: sticky;
-  top: 0;
-  width: 100%;
-  background: #0f172a;
-  z-index: 10;
-}
-.logs-actions-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.logs-meta{
-  font-size: 0.75em;
-  margin-bottom: 5px;
-}
-.log-filter-input-info{
-  font-size: 0.75em;
-}
-.logs-close {
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  font-size: 24px;
-}
-.logs-close:hover {
-  color: white;
-}
-.logs-output {
-  margin-top: 10px;
-  font-size: 11px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.logs-panel {
-  margin-top: 10px;
-  padding: 10px;
-  background: #0f172a;
-  color: #94a3b8;
-  border-radius: 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 100%;
-}
-
-.log-error {
-  color: #ff5c5c;
-  font-weight: 600;
-}
-
-.log-keyword {
-  color: #00d4a6;
-  font-weight: 600;
-}
-
-/** LOGS END */
-
 /* Sidebar */
 .sidebar {
   width: 300px;
@@ -126,21 +65,21 @@ body {
   color: var(--text-03);
   display: flex;
   flex-direction: column;
-  padding: 1.75rem;
-  gap: 0.5rem;
+  padding: 24px;
+  gap: 24px;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
 }
 
 .brand-logo {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -157,17 +96,15 @@ body {
 }
 
 .brand-name {
-  font-size: 1.1rem;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-03);
-  letter-spacing: -0.02em;
 }
 
 .brand-subtitle {
-  font-size: 0.95rem;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-03);
-  letter-spacing: 0.08em;
 }
 
 .config-section {
@@ -175,24 +112,24 @@ body {
 }
 
 .config-section-title {
-  font-size: 1.1rem;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-03);
-  margin-bottom: 1rem;
-  padding-left: 0.25rem;
+  margin-bottom: 16px;
+  padding-left: 4px;
 }
 
 .config-group {
-  margin-bottom: 1.25rem;
+  margin-bottom: 16px;
 }
 
 .config-group label {
   display: block;
-  font-size: 0.95rem;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-03);
-  margin-bottom: 0.5rem;
-  padding-left: 0.25rem;
+  margin-bottom: 8px;
+  padding-left: 4px;
 }
 
 .input-field {
@@ -200,10 +137,10 @@ body {
   background: var(--bg-input-dark);
   border: 1px solid var(--border-subtle);
   color: var(--text-03);
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-sans);
-  font-size: 0.95rem;
+  font-size: 15px;
   outline: none;
   transition: all var(--transition-normal);
   appearance: none;
@@ -223,25 +160,25 @@ select.input-field {
   cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  padding-right: 2.5rem;
+  background-position: right 8px center;
+  padding-right: 24px;
 }
 
 select.input-field option {
   background: var(--base-black);
   color: var(--text-03);
-  padding: 0.5rem;
+  padding: 8px;
 }
 
 select.input-field option:hover {
   background: var(--border-subtle);
   color: var(--text-03);
-  padding: 0.5rem;
+  padding: 8px;
 }
 
 .sidebar-footer {
   margin-top: auto;
-  padding-top: 1.5rem;
+  padding-top: 16px;
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -250,22 +187,22 @@ select.input-field option:hover {
   background: transparent;
   border: 1px solid var(--base-black);
   color: var(--text-03);
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-sans);
-  font-size: 0.95rem;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-normal);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .clear-btn:hover:not(:disabled) {
   color: var(--error-text-light);
-  border: 1px solid var(--error-border);
+  border: 1px solid var(--base-black);
 }
 
 .clear-btn:disabled {
@@ -276,6 +213,34 @@ select.input-field option:hover {
 .clear-btn svg {
   width: 14px;
   height: 14px;
+}
+
+.logs-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--base-black);
+  color: var(--text-03);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.logs-btn:hover:not(:disabled) {
+  color: var(--text-02);
+  border: 1px solid var(--base-black);
+}
+
+.logs-btn:disabled {
+  color: var(--border-subtle);
+  cursor: not-allowed;
 }
 
 /* Main Chat Area */
@@ -331,10 +296,10 @@ select.input-field option:hover {
 .chat-container {
   flex: 1;
   overflow-y: auto;
-  padding: 2rem 2rem 1rem;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 24px;
   scroll-behavior: smooth;
 }
 
@@ -345,15 +310,15 @@ select.input-field option:hover {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 4rem 2rem;
+  padding: 64px 32px;
   margin: auto;
   max-width: 480px;
 }
 
 .welcome-icon {
-  width: 72px;
-  height: 72px;
-  margin-bottom: 1.5rem;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 24px;
 }
 
 .welcome-icon svg {
@@ -362,35 +327,34 @@ select.input-field option:hover {
 }
 
 .welcome-title {
-  font-size: 1.4rem;
+  font-size: 21px;
   font-weight: 600;
   color: var(--text-01);
-  margin-bottom: 0.75rem;
-  letter-spacing: -0.02em;
+  margin-bottom: 8px;
 }
 
 .welcome-subtitle {
-  font-size: 0.95rem;
+  font-size: 15px;
   color: var(--text-01);
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .welcome-hint {
-  margin-top: 2rem;
-  padding: 1rem 1.25rem;
+  margin-top: 24px;
+  padding: 16px;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  font-size: 0.95rem;
+  font-size: 15px;
   color: var(--text-01);
 }
 
 .welcome-hint code {
   background: var(--bg-elevated);
-  padding: 0.15rem 0.4rem;
+  padding: 2px 4px;
   border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-01);
 }
@@ -401,7 +365,7 @@ select.input-field option:hover {
   width: 100%;
   margin: 0 auto;
   display: flex;
-  gap: 1rem;
+  gap: 16px;
   animation: message-in 0.3s ease;
 }
 
@@ -421,8 +385,8 @@ select.input-field option:hover {
 }
 
 .message-content {
-  font-size: 0.95rem;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -431,7 +395,7 @@ select.input-field option:hover {
   background: var(--bg-chat);
   border: 1px solid var(--border-color);
   color: var(--text-01);
-  padding: 1rem 1.25rem;
+  padding: 8px 16px;
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
   max-width: 75%;
 }
@@ -439,13 +403,13 @@ select.input-field option:hover {
 .assistant .message-content {
   background: var(--base-white);
   color: var(--text-01);
-  padding: 0.5rem 0;
+  padding: 8px 0;
   width: 100%;
 }
 
 /* Markdown Styles */
 .markdown-body p {
-  margin-bottom: 1rem;
+  margin-bottom: 8px;
   color: var(--text-01);
 }
 
@@ -460,10 +424,10 @@ select.input-field option:hover {
 
 .markdown-body code {
   background: var(--bg-chat);
-  padding: 0.2rem 0.5rem;
-  border-radius: 5px;
+  padding: 2px 4px;
+  border-radius: 4px;
   font-family: var(--font-mono);
-  font-size: 0.82em;
+  font-size: 13px;
   color: var(--text-01);
   border: 1px solid var(--border-color);
 }
@@ -471,10 +435,10 @@ select.input-field option:hover {
 .markdown-body pre {
   background: var(--base-white);
   border: 1px solid var(--border-color);
-  padding: 1.25rem;
+  padding: 16px;
   border-radius: var(--radius-md);
   overflow-x: auto;
-  margin: 1.25rem 0;
+  margin: 16px 0;
 }
 
 .markdown-body pre code {
@@ -482,23 +446,23 @@ select.input-field option:hover {
   padding: 0;
   color: var(--text-01);
   border: none;
-  font-size: 0.8rem;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .markdown-body ul, .markdown-body ol {
-  margin-bottom: 1rem;
-  padding-left: 1.5rem;
+  margin-bottom: 8px;
+  padding-left: 24px;
   color: var(--text-01);
 }
 
 .markdown-body li {
-  margin-bottom: 0.5rem;
+  margin-bottom: 4px;
 }
 
 .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
-  margin-top: 1.75rem;
-  margin-bottom: 0.75rem;
+  margin-top: 16px;
+  margin-bottom: 8px;
   font-weight: 600;
   color: var(--text-01);
   letter-spacing: -0.01em;
@@ -509,15 +473,15 @@ select.input-field option:hover {
 }
 
 .markdown-body h1 {
-  font-size: 1.4rem;
+  font-size: 21px;
 }
 
 .markdown-body h2 {
-  font-size: 1.2rem;
+  font-size: 17px;
 }
 
 .markdown-body h3 {
-  font-size: 1.05rem;
+  font-size: 15px;
 }
 
 .markdown-body a {
@@ -531,9 +495,9 @@ select.input-field option:hover {
 
 .markdown-body blockquote {
   border-left: 3px solid var(--border-subtle);
-  padding-left: 1rem;
+  padding-left: 16px;
   margin-left: 0;
-  margin-bottom: 1rem;
+  margin-bottom: 8px;
   color: var(--text-01);
   font-style: italic;
 }
@@ -541,13 +505,13 @@ select.input-field option:hover {
 .markdown-body table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1rem 0;
-  font-size: 0.85rem;
+  margin: 8px 0;
+  font-size: 13px;
 }
 
 .markdown-body th, .markdown-body td {
   border: 1px solid var(--border-color);
-  padding: 0.75rem 1rem;
+  padding: 8px 16px;
   text-align: left;
 }
 
@@ -560,7 +524,7 @@ select.input-field option:hover {
 .markdown-body hr {
   border: none;
   border-top: 1px solid var(--border-color);
-  margin: 2rem 0;
+  margin: 16px 0;
 }
 
 /* Thinking block */
@@ -568,14 +532,14 @@ select.input-field option:hover {
   background: var(--base-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  margin-bottom: 1rem;
+  margin-bottom: 16px;
   overflow: hidden;
 }
 
 .thinking-block summary {
-  padding: 0.75rem 1rem;
+  padding: 8px 16px;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text-01);
   background: var(--bg-elevated);
@@ -583,7 +547,7 @@ select.input-field option:hover {
   user-select: none;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .thinking-block summary:hover {
@@ -609,8 +573,8 @@ select.input-field option:hover {
 }
 
 .thinking-content {
-  padding: 1rem;
-  font-size: 0.82rem;
+  padding: 16px;
+  font-size: 13px;
   color: var(--text-02);
   max-height: 300px;
   overflow-y: auto;
@@ -633,10 +597,10 @@ select.input-field option:hover {
 .loading-indicator {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 8px;
   color: var(--text-01);
-  font-size: 0.95rem;
-  padding: 0.75rem 1rem;
+  font-size: 15px;
+  padding: 8px 16px;
   background: var(--base-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -678,22 +642,21 @@ select.input-field option:hover {
 .error-toast {
   background: var(--error-bg);
   color: var(--error-text);
-  padding: 1rem 1.25rem;
+  padding: 16px 24px;
   border-radius: var(--radius-md);
-  margin: 1rem auto;
+  margin: 16px auto;
   max-width: 900px;
-  font-size: 0.85rem;
+  font-size: 15px;
   font-family: var(--font-sans);
   display: flex;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: 8px;
 }
 
 .error-toast svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-  margin-top: 1px;
 }
 
 /* Warning message in chat */
@@ -704,13 +667,13 @@ select.input-field option:hover {
 .warning-message {
   background: #fefce8;
   color: #713f12;
-  padding: 0.75rem 1rem;
+  padding: 8px 16px;
   border-radius: var(--radius-md);
-  font-size: 0.8rem;
+  font-size: 15px;
   font-family: var(--font-sans);
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 8px;
 }
 
 .warning-message svg {
@@ -721,7 +684,7 @@ select.input-field option:hover {
 
 /* Input Area */
 .input-wrapper {
-  padding: 1rem 2rem 1.5rem;
+  padding: 16px 24px 24px;
   background: inear-gradient(to top, var(--bg-darker) 60%, transparent);
 }
 
@@ -734,7 +697,7 @@ select.input-field option:hover {
   border-radius: var(--radius-lg);
   display: flex;
   align-items: flex-end;
-  padding: 0.5rem;
+  padding: 8px 16px;
   transition: all var(--transition-normal);
   box-shadow: var(--shadow-sm);
 }
@@ -752,9 +715,9 @@ select.input-field option:hover {
   background: transparent;
   border: none;
   color: var(--text-01);
-  padding: 0.75rem 1rem;
+  padding: 12px 16px;
   font-family: var(--font-sans);
-  font-size: 0.95rem;
+  font-size: 15px;
   resize: none;
   outline: none;
   max-height: 200px;
@@ -777,7 +740,7 @@ select.input-field option:hover {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  margin: 0.125rem;
+  margin: 2px;
   transition: all var(--transition-normal);
   flex-shrink: 0;
 }
@@ -799,9 +762,107 @@ select.input-field option:hover {
 }
 
 .send-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   fill: currentColor;
+}
+
+/* Logs */
+.logs-actions {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  background: var(--base-black);
+  z-index: 10;
+  padding-top: 8px;
+}
+
+.logs-actions::after {
+  content: "";
+  display: block;
+  height: 16px;
+}
+
+.logs-actions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.logs-meta {
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.log-filter-input-info {
+  font-size: 15px;
+}
+
+.logs-close {
+  background: transparent;
+  border: none;
+  color: var(--text-03);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.logs-close:hover {
+  color: var(--text-02);
+}
+
+.log-filter-input {
+  font-size: 15px;
+  line-height: 1.25;
+  padding: 2px 4px;
+  margin: 2px 0px;
+  border-radius: var(--radius-sm);
+}
+
+.logs-action-btn {
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-03);
+  background-color: var(--accent-primary);
+  margin-left: 4px;
+  cursor: pointer;
+}
+
+.logs-action-btn:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+.logs-output {
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.logs-panel {
+  margin-top: 8px;
+  padding: 0px 16px 24px 16px;
+  background: var(--base-black);
+  color: var(--text-03);
+  border-radius: 8px 8px 0px 0px;
+  border-left: 1px solid var(--border-subtle);
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 100%;
+}
+
+.log-error {
+  color: var(--error-text-light);
+  font-weight: 600;
+}
+
+.log-keyword {
+  color: var(--accent-primary);
+  font-weight: 600;
 }
 
 /* Scrollbar styling */
@@ -828,15 +889,15 @@ select.input-field option:hover {
   .sidebar {
     width: 260px;
     min-width: 260px;
-    padding: 1.25rem;
+    padding: 24px;
   }
 
   .chat-container {
-    padding: 1.5rem 1rem;
+    padding: 16px;
   }
 
   .input-wrapper {
-    padding: 1rem;
+    padding: 16px;
   }
 }
 
@@ -850,8 +911,8 @@ select.input-field option:hover {
     min-width: 100%;
     flex-direction: row;
     flex-wrap: wrap;
-    padding: 1rem;
-    gap: 1rem;
+    padding: 16px;
+    gap: 16px;
     border-right: none;
   }
 
