@@ -4,7 +4,8 @@
   --bg-chat: #f9fafb;
   --bg-input: #ffffff;
   --bg-input-dark: #1e222d;
-  --bg-elevated: #e5e7eb;
+  --grey-200: #e5e7eb;
+  --grey-400: #9ca3af;
   --accent-primary: #00a882;
   --accent-secondary: #e4fff9;
   --accent-hover: #006d59;
@@ -17,8 +18,11 @@
   --border-subtle: #6b7280;
   --error-bg: #f6cccb;
   --error-border: #f6cccb;
+  --error-text-500: #dd524c;
   --error-text-light: #f6cccb;
   --error-text: #8d2822;
+  --warning-text: #713f12;
+  --warning-bg: #fefce8;
   --font-sans: "Lato", "Arial", sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --radius-sm: 4px;
@@ -55,6 +59,16 @@ body {
   display: flex;
   width: 100%;
   height: 100%;
+}
+
+::-moz-selection {
+  color: var(--text-01);
+  background: var(--accent-secondary)
+}
+
+::selection {
+  color: var(--text-01);
+  background: var(--accent-secondary)
 }
 
 /* Sidebar */
@@ -99,12 +113,14 @@ body {
   font-size: 17px;
   font-weight: 600;
   color: var(--text-03);
+  line-height: 1.5;
 }
 
 .brand-subtitle {
   font-size: 15px;
   font-weight: 500;
   color: var(--text-03);
+  line-height: 1.2;
 }
 
 .config-section {
@@ -147,13 +163,18 @@ body {
   -webkit-appearance: none;
 }
 
+.input-field::placeholder {
+  color: var(--text-03);
+}
+
 .input-field:hover {
-  border-color: var(--border-subtle);
-  background: var(--border-subtle);
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
 }
 
 .input-field:focus {
-  border-color: var(--border-subtle);
+  color: var(--text-03);
+  border-color: var(--text-03);
 }
 
 select.input-field {
@@ -171,7 +192,7 @@ select.input-field option {
 }
 
 select.input-field option:hover {
-  background: var(--border-subtle);
+  background: var(--base-black);
   color: var(--text-03);
   padding: 8px;
 }
@@ -179,16 +200,16 @@ select.input-field option:hover {
 .sidebar-footer {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--base-black);
 }
 
 .clear-btn {
   width: 100%;
   background: transparent;
-  border: 1px solid var(--base-black);
-  color: var(--text-03);
+  border: 1px solid var(--border-subtle);
+  color: var(--grey-400);
   padding: 8px 16px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: 15px;
   font-weight: 500;
@@ -201,25 +222,26 @@ select.input-field option:hover {
 }
 
 .clear-btn:hover:not(:disabled) {
-  color: var(--error-text-light);
-  border: 1px solid var(--base-black);
+  color: var(--error-text);
+  background-color: var(--error-text-light);
+  border: 1px solid var(--error-text);
 }
 
 .clear-btn:disabled {
-  color: var(--border-subtle);
+  color: var(--grey-400);
   cursor: not-allowed;
 }
 
 .clear-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .logs-btn {
   width: 100%;
   background: transparent;
   border: 1px solid var(--base-black);
-  color: var(--text-03);
+  color: var(--grey-400);
   padding: 8px 16px;
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
@@ -234,13 +256,26 @@ select.input-field option:hover {
 }
 
 .logs-btn:hover:not(:disabled) {
-  color: var(--text-02);
+  color: var(--grey-200);
+  background-color: var(--base-black);
   border: 1px solid var(--base-black);
 }
 
 .logs-btn:disabled {
-  color: var(--border-subtle);
+  color: var(--grey-400);
   cursor: not-allowed;
+}
+
+.session-id {
+  color: var(--grey-400);
+  padding: 8px 16px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 /* Main Chat Area */
@@ -341,7 +376,7 @@ select.input-field option:hover {
 
 .welcome-hint {
   margin-top: 24px;
-  padding: 16px;
+  padding: 12px 16px;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -350,7 +385,7 @@ select.input-field option:hover {
 }
 
 .welcome-hint code {
-  background: var(--bg-elevated);
+  background: var(--grey-200);
   padding: 2px 4px;
   border-radius: 4px;
   font-family: var(--font-mono);
@@ -542,7 +577,7 @@ select.input-field option:hover {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-01);
-  background: var(--bg-elevated);
+  background: var(--grey-200);
   border-bottom: 1px solid var(--border-color);
   user-select: none;
   display: flex;
@@ -665,8 +700,8 @@ select.input-field option:hover {
 }
 
 .warning-message {
-  background: #fefce8;
-  color: #713f12;
+  background: var(--warning-bg);
+  color: var(--warning-text);
   padding: 8px 16px;
   border-radius: var(--radius-md);
   font-size: 15px;
@@ -684,7 +719,7 @@ select.input-field option:hover {
 
 /* Input Area */
 .input-wrapper {
-  padding: 16px 24px 24px;
+  padding: 24px;
   background: inear-gradient(to top, var(--bg-darker) 60%, transparent);
 }
 
@@ -721,7 +756,7 @@ select.input-field option:hover {
   resize: none;
   outline: none;
   max-height: 200px;
-  min-height: 44px;
+  min-height: 48px;
   line-height: 1.5;
 }
 
@@ -740,7 +775,7 @@ select.input-field option:hover {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  margin: 2px;
+  margin: 4px;
   transition: all var(--transition-normal);
   flex-shrink: 0;
 }
@@ -867,8 +902,8 @@ select.input-field option:hover {
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -876,7 +911,7 @@ select.input-field option:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #6b7280;
+  background: var(--border-subtle);
   border-radius: 4px;
 }
 
