@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>goTom Sales Agent</title>
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="https://gotom.io/favicons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://gotom.io/favicons/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://gotom.io/favicons/apple-icon-180x180.png">
+  <meta name="theme-color" content="#00a882">
+
+  <!-- Vendor scripts -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Fonts & styles -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=3">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Reusable goTom logo as SVG symbol -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="gotom-logo" viewBox="0 0 32 32">
+        <path d="M32 0H0V13.7143H32V0Z"/>
+        <path d="M13.7143 18.2857H0V32H13.7143V18.2857Z"/>
+        <path d="M32 18.2857H18.2857V32H32V18.2857Z"/>
+      </symbol>
+    </svg>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg fill="#00A882"><use href="#gotom-logo"/></svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">goTom</span>
+          <span class="brand-subtitle">Sales Agent</span>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <div class="config-section-title">Configuration</div>
+
+        <div class="config-group">
+          <label for="server">MCP Server</label>
+          <select id="server" class="input-field" v-model="mcpServer" @change="saveServerCookie">
+            <option v-for="server in serverChoices" :key="server.url" :value="server.url">
+              {{ server.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="config-group">
+          <label for="model">AI Model</label>
+          <select id="model" class="input-field" v-model="aiModel" @change="saveModelCookie">
+            <option value="anthropic:claude-sonnet-4-6">Claude Sonnet 4.6</option>
+            <option value="anthropic:claude-opus-4-5">Claude Opus 4.5</option>
+            <option value="openai:gpt-4.1">GPT-4.1</option>
+          </select>
+        </div>
+
+        <div class="config-group">
+          <label for="auth">API Key</label>
+          <input id="auth" type="password" class="input-field" v-model="authToken"
+                 @input="saveCookie" placeholder="Enter your API key...">
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="clear-btn" @click="clearHistory" :disabled="loading">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+          Clear Context History
+        </button>
+
+        <button class="clear-btn logs-btn" @click="showLogs = true">
+          Get Logs
+        </button>
+
+        <div class="session-id">Session ID: {{ mcpSessionId }}</div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-area">
+      <div class="progress-bar" :class="{ loading }">
+        <div class="progress"></div>
+      </div>
+
+      <!-- Logs panel -->
+      <div v-if="showLogs" class="logs-panel">
+        <div class="logs-actions">
+          <div class="logs-actions-header">
+            <div class="logs-title">Logs</div>
+            <button class="logs-close" @click="closeLogs">✕</button>
+          </div>
+
+          <div class="logs-meta">
+            Your short MCP session ID: <span class="log-keyword">{{ mcpSessionId }}</span>
+          </div>
+
+          <div class="logs-control-group">
+            <div class="log-filter-input-info">
+              Search (regex) logs on server, leave empty for most recent
+            </div>
+            <input v-model="logSearchQuery" class="log-filter-input"
+                   placeholder="Search logs on server" @keydown.enter="searchLogs">
+            <button class="logs-action-btn" @click="searchLogs" :disabled="loading">
+              Search Logs
+            </button>
+          </div>
+
+          <input v-model="logFilter" class="log-filter-input" placeholder="Filter logs locally...">
+        </div>
+
+        <pre class="logs-output" v-html="highlightedLogs"></pre>
+      </div>
+
+      <!-- Chat -->
+      <div class="chat-container" ref="chatContainer">
+        <!-- Welcome -->
+        <div v-if="messages.length === 0" class="welcome-screen">
+          <div class="welcome-icon">
+            <svg fill="#00A882"><use href="#gotom-logo"/></svg>
+          </div>
+          <h1 class="welcome-title">goTom Sales Agent</h1>
+          <p class="welcome-subtitle">
+            Your AI-powered interface for managing advertising campaigns and data operations.
+          </p>
+          <div class="welcome-hint">
+            Press <code>Enter</code> to send, <code>Shift+Enter</code> for new line
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div v-for="(msg, index) in messages" :key="index" class="message" :class="msg.role">
+          <div v-if="msg.role === 'user'" class="message-content">{{ msg.content }}</div>
+
+          <div v-else-if="msg.role === 'warning'" class="message-content warning-message">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9"  x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>{{ msg.content }}</span>
+          </div>
+
+          <div v-else class="message-content markdown-body">
+            <div v-if="msg.content" v-html="renderMarkdown(msg.content)"></div>
+          </div>
+        </div>
+
+        <!-- Thinking -->
+        <div v-if="loading" class="thinking-indicator-wrapper">
+          <div class="loading-indicator">
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <span>Thinking...</span>
+          </div>
+        </div>
+
+        <!-- Error -->
+        <div v-if="error" class="error-toast">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8"  x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span>{{ error }}</span>
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="input-wrapper">
+        <div class="input-box">
+          <textarea ref="inputArea" v-model="promptInput" class="chat-input" rows="1"
+                    placeholder="Ask me anything about your campaigns..."
+                    @keydown="handleKeydown" @input="adjustTextareaHeight"></textarea>
+          <button class="send-btn" @click="submit"
+                  :disabled="loading || !promptInput || !authToken">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    window.chat_config = {{ WINDOW_CHAT_CONFIG }};
+  </script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
