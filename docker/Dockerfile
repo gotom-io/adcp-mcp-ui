@@ -8,4 +8,4 @@ RUN npm ci
 
 EXPOSE 3000
 
-ENTRYPOINT ["node", "/app/server.mjs"]
+ENTRYPOINT ["node", "/app/backend/server.mjs"]
