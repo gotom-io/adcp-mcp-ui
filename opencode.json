@@ -14,18 +14,29 @@
         }
       },
       "models": {
-        "qwen/qwen3-coder-30b": {
-          "name": "Qwen3 Coder 30b",
+        "qwen/qwen3.6-35b-a3b": {
+          "name": "Qwen3 3.6 35b a3b (Local goTom LLM)",
+          "attachment": true,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
           "options": {
-            "temperature": 0.7,
-            "top_p": 0.8,
+            "temperature": 0.6,
+            "top_p": 0.95,
             "top_k": 20,
-            "min_p": 0.01,
-            "repetition_penalty": 1.05
+            "min_p": 0.0,
+            "presence_penalty": 0.0,
+            "repetition_penalty": 1.0
           }
         }
       }
     }
   },
-  "model": "qwen/qwen3-coder-30b"
+  "model": "qwen/qwen3.6-35b-a3b"
 }
