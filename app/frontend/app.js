@@ -1,5 +1,5 @@
 const { createApp, ref, onMounted, nextTick, computed } = Vue;
-import { getMcpSessionIdShort } from "../backend/shared.mjs";
+import { getMcpSessionIdShort } from "../shared.mjs";
 import { useSettings } from "./composables/useSettings.js";
 import { useChat } from "./composables/useChat.js";
 import { useLogs } from "./composables/useLogs.js";
@@ -43,7 +43,7 @@ createApp({
       highlightedLogs,
       closeLogs,
       searchLogs,
-    } = useLogs(authToken, mcpServer, aiModel, mcpSessionId, loading, error);
+    } = useLogs(authToken, mcpServer, aiModel, sessionId, loading, error);
 
     return {
       authToken,

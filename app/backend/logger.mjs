@@ -2,7 +2,7 @@ import fs from "fs";
 import path from 'node:path';
 import * as util from "node:util";
 import NodeCache from 'node-cache';
-import { getMcpSessionIdShort } from "../frontend/shared.mjs";
+import { getMcpSessionIdShort } from "../shared.mjs";
 
 const LOG_FILE = process.env.LOG_FILE || '/app/adcp-mcp-ui-logs/server.log';
 const NO_ID_FOUND = '-';

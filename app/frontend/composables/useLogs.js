@@ -1,7 +1,9 @@
 const { ref, computed } = Vue;
+import { getMcpSessionIdShort } from '../../shared.mjs';
 import { ERROR_KEYWORDS, HIGHLIGHT_KEYWORDS } from '../constants.js';
 
-export function useLogs(authToken, mcpServer, aiModel, mcpSessionId, loading, error) {
+export function useLogs(authToken, mcpServer, aiModel, sessionId, loading, error) {
+  const mcpSessionId = getMcpSessionIdShort(sessionId);
   const showLogs = ref(false);
   const logs = ref('');
   const logFilter = ref('');
@@ -24,8 +26,8 @@ export function useLogs(authToken, mcpServer, aiModel, mcpSessionId, loading, er
 
     // highlight keywords
     logsVal = logsVal
-      .replace(new RegExp(`(${ERROR_KEY_WORDS})`, 'gi'), '<span class="log-error">$1</span>')
-      .replace(new RegExp(`(${HIGHLIGHT_KEY_WORDS})`, 'gi'), '<span class="log-keyword">$1</span>');
+      .replace(new RegExp(`(${ERROR_KEYWORDS})`, 'gi'), '<span class="log-error">$1</span>')
+      .replace(new RegExp(`(${HIGHLIGHT_KEYWORDS})`, 'gi'), '<span class="log-keyword">$1</span>');
 
     return logsVal;
   });
@@ -35,7 +37,7 @@ export function useLogs(authToken, mcpServer, aiModel, mcpSessionId, loading, er
     'x-adcp-auth': authToken.value,
     'x-mcp-server': mcpServer.value,
     'x-ai-model': aiModel.value,
-    'x-session-id': sessionId,
+    'x-session-id': sessionId, // Full UUID for backend
   });
 
   const closeLogs = () => {

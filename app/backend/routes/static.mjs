@@ -6,13 +6,12 @@ import { fileURLToPath } from 'node:url';
 const staticFiles = {
   '/frontend/styles.css': { file: 'frontend/styles.css', contentType: 'text/css' },
   '/frontend/app.js': { file: 'frontend/app.js', contentType: 'application/javascript' },
-  '/frontend/shared.mjs': { file: 'frontend/shared.mjs', contentType: 'application/javascript' },
   '/frontend/constants.js': { file: 'frontend/constants.js', contentType: 'application/javascript' },
   '/frontend/helpers.js': { file: 'frontend/helpers.js', contentType: 'application/javascript' },
   '/frontend/composables/useSettings.js': { file: 'frontend/composables/useSettings.js', contentType: 'application/javascript' },
   '/frontend/composables/useChat.js': { file: 'frontend/composables/useChat.js', contentType: 'application/javascript' },
   '/frontend/composables/useLogs.js': { file: 'frontend/composables/useLogs.js', contentType: 'application/javascript' },
-  '/backend/shared.mjs': { file: 'frontend/shared.mjs', contentType: 'application/javascript' },
+  '/shared.mjs': { file: 'shared.mjs', contentType: 'application/javascript' },
 };
 
 const __filename = fileURLToPath(import.meta.url);

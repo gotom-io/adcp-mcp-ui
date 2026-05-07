@@ -1,5 +1,5 @@
 import NodeCache from 'node-cache';
-import { getMcpSessionIdShort } from "../frontend/shared.mjs";
+import { getMcpSessionIdShort } from "../shared.mjs";
 import { createMCPClient } from '@ai-sdk/mcp';
 
 const cacheKeySeparator = '___';

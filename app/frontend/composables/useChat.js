@@ -1,5 +1,5 @@
 const { ref, nextTick } = Vue;
-import { getMcpSessionIdShort } from "../../backend/shared.mjs";
+import { getMcpSessionIdShort } from "../../shared.mjs";
 
 export function useChat(authToken, mcpServer, aiModel, sessionId) {
   const promptInput = ref('');

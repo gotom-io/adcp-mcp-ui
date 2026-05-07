@@ -3,6 +3,7 @@ import { getHttpClientTools, addToContextHistory, clearContextHistory, cacheKeyS
 import { createLogger, NO_ID_FOUND } from '../logger.mjs';
 import { streamText, stepCountIs } from 'ai';
 import SYSTEM_PROMPT from '../system-prompt.mjs';
+import { getMcpSessionIdShort } from '../../shared.mjs';
 
 const handleChat = async (req, res) => {
   const headerInfo = getHeaderInfo(req, res);
