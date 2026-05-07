@@ -7,7 +7,7 @@ services:
           dockerfile: ./docker/Dockerfile
         working_dir: /app
         user: "${HOST_UID:?err}:${HOST_GID:?err}"
-        entrypoint: ["node", "server.mjs"]
+        entrypoint: ["node", "backend/server.mjs"]
         volumes:
             - ./app:/app
         ports:
