@@ -4,16 +4,57 @@
     ".opencode/guidelines.md"
   ],
   "provider": {
-    "ngrok-lmstudio": {
+    "gotom": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "LM Studio (Mike)",
+      "name": "LM Studio (Local goTom LLM)",
       "options": {
         "baseURL": "https://homy-case-trophoplasmatic.ngrok-free.dev/v1",
         "headers": {
-          "Authorization": "Basic {env:LMSTUDIO_BASIC_AUTH}"
+          "Authorization": "Basic {env:OPENCODE_LMSTUDIO_BASIC_AUTH}"
         }
       },
       "models": {
+        "qwen/qwen3-coder-next": {
+          "name": "Qwen3 Coder Next 80b (Local goTom LLM)",
+          "options": {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 40,
+            "min_p": 0.01,
+            "repetition_penalty": 1.0
+          }
+        },
+        "qwen/qwen3-coder-30b": {
+          "name": "Qwen3 Coder 30b (Local goTom LLM)",
+          "options": {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 40,
+            "min_p": 0.01,
+            "repetition_penalty": 1.0
+          }
+        },
+        "qwen/qwen3.6-27b": {
+          "name": "Qwen3 3.6 27b (Local goTom LLM)",
+          "attachment": true,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "options": {
+            "temperature": 0.6,
+            "top_p": 0.95,
+            "top_k": 20,
+            "min_p": 0.0,
+            "presence_penalty": 0.0,
+            "repetition_penalty": 1.0
+          }
+        },
         "qwen/qwen3.6-35b-a3b": {
           "name": "Qwen3 3.6 35b a3b (Local goTom LLM)",
           "attachment": true,
