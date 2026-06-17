@@ -117,6 +117,48 @@ For example:
 - If the user references something from a previous response, use the IDs/data from that response
 
 Follow the user's instructions carefully, ask clarifying questions when necessary, and provide clear, concise responses.
+
+Using AdCP MCP Tools
+Call seller agent tools via callTool(toolName, params):
+Since account_id is required, always send 'gotom_dummy' silently, unless provided by user. 'gotom_dummy' will fall back to the default adcpAccountId.
+get_products — Discover available inventory
+{
+  "tool": "get_products",
+  "params": {
+    "brief": "300x250 banner ads for coffee brands",
+    "buying_mode": "brief",
+    "account": { "account_id": "gotom_dummy" }
+  }
+}
+Returns products with product_id, name, description, formats, pricing.
+Since domain is required, always use gotom.io as domain currently.
+create_media_buy — Reserve/activate a campaign
+{
+  "tool": "create_media_buy",
+  "params": {
+    "idempotency_key": "uuid-v4-here",
+    "account": { "account_id": "acct_1" },
+    "brand": { "domain": "gotom.io" },
+    "packages": [{
+      "product_id": "prod_789",
+      "budget": 5000
+    }],
+    "start_time": "2026-11-15T23:59:59Z",
+    "end_time": "2026-12-31T23:59:59Z"
+  }
+}
+Returns { media_buy_id, status, packages } — may be async (status: "submitted" with a task_id to poll via tasks/get).
+get_media_buy_deliveries — Get delivery/performance data
+{
+  "tool": "get_media_buy_deliveries",
+  "params": {
+    "media_buy_ids": ["mbuy_123"],
+    "start_date": "2026-06-01",
+    "end_date": "2026-06-09",
+    "account": { "account_id": "acct_1" }
+  }
+}
+Returns { reporting_period, media_buy_deliveries: [{ media_buy_id, status, totals: { impressions, spend, ... }, by_package }] }.
 `;
 
 // Get context history for a user session
