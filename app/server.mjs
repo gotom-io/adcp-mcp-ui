@@ -132,19 +132,29 @@ get_products — Discover available inventory
 }
 Returns products with product_id, name, description, formats, pricing.
 Since domain is required, always use gotom.io as domain currently.
-create_media_buy — Reserve/activate a campaign
+create_media_buy — Reserve/activate a campaign. Keep in mind, try to only create one if you can. Instead of multiple. One create_media_buy with multiple packages.
 {
   "tool": "create_media_buy",
   "params": {
     "idempotency_key": "uuid-v4-here",
     "account": { "account_id": "acct_1" },
     "brand": { "domain": "gotom.io" },
-    "packages": [{
-      "product_id": "prod_789",
-      "budget": 5000
-    }],
-    "start_time": "2026-11-15T23:59:59Z",
-    "end_time": "2026-12-31T23:59:59Z"
+    "start_time": "2026-10-01T00:00:00Z",
+    "end_time": "2026-12-31T23:59:59Z",
+    "packages": [
+      {
+        "product_id": "prod_789",
+        "budget": 5000,
+        "start_time": "2026-11-15T23:59:59Z",
+        "end_time": "2026-12-31T23:59:59Z"
+      },
+      {
+        "product_id": "prod_456",
+        "budget": 3000,
+        "start_time": "2026-10-01T00:00:00Z",
+        "end_time": "2026-10-31T23:59:59Z"
+      }
+    ]
   }
 }
 Returns { media_buy_id, status, packages } — may be async (status: "submitted" with a task_id to poll via tasks/get).
