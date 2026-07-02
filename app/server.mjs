@@ -133,29 +133,42 @@ get_products — Discover available inventory
 Returns products with product_id, name, description, formats, pricing.
 Since domain is required, always use gotom.io as domain currently.
 create_media_buy — Reserve/activate a campaign. Keep in mind, try to only create one if you can. Instead of multiple. One create_media_buy with multiple packages.
+It's possible to add targeting_overlay with for frequency_cap e.g.:
 {
-  "tool": "create_media_buy",
-  "params": {
-    "idempotency_key": "uuid-v4-here",
-    "account": { "account_id": "acct_1" },
-    "brand": { "domain": "gotom.io" },
-    "start_time": "2026-10-01T00:00:00Z",
-    "end_time": "2026-12-31T23:59:59Z",
-    "packages": [
-      {
-        "product_id": "prod_789",
-        "budget": 5000,
-        "start_time": "2026-11-15T23:59:59Z",
-        "end_time": "2026-12-31T23:59:59Z"
-      },
-      {
-        "product_id": "prod_456",
-        "budget": 3000,
+    "tool": "create_media_buy",
+    "params": {
+        "idempotency_key": "uuid-v4-here",
+        "account": {
+            "account_id": "gotom_dummy"
+        },
+        "brand": {
+            "domain": "gotom.io"
+        },
         "start_time": "2026-10-01T00:00:00Z",
-        "end_time": "2026-10-31T23:59:59Z"
-      }
-    ]
-  }
+        "end_time": "2026-12-31T23:59:59Z",
+        "packages": [
+            {
+                "product_id": "prod_789",
+                "budget": 5000,
+                "start_time": "2026-11-15T23:59:59Z",
+                "end_time": "2026-12-31T23:59:59Z"
+            },
+            {
+                "product_id": "prod_456",
+                "budget": 3000,
+                "start_time": "2026-10-01T00:00:00Z",
+                "end_time": "2026-10-31T23:59:59Z",
+                "targeting_overlay": {
+                    "frequency_cap": {
+                        "suppress": {
+                            "interval": 60,
+                            "unit": "minutes",
+                        }
+                    }
+                }
+            }
+        ]
+    }
 }
 Returns { media_buy_id, status, packages } — may be async (status: "submitted" with a task_id to poll via tasks/get).
 get_media_buy_deliveries — Get delivery/performance data
@@ -165,7 +178,7 @@ get_media_buy_deliveries — Get delivery/performance data
     "media_buy_ids": ["mbuy_123"],
     "start_date": "2026-06-01",
     "end_date": "2026-06-09",
-    "account": { "account_id": "acct_1" }
+    "account": { "account_id": "gotom_dummy" }
   }
 }
 Returns { reporting_period, media_buy_deliveries: [{ media_buy_id, status, totals: { impressions, spend, ... }, by_package }] }.
