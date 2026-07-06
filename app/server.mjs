@@ -160,7 +160,7 @@ const getModel = (modelString) => {
     case 'openai':
       return openai(modelName);
     default:
-      return anthropic('claude-sonnet-4-6');
+      return anthropic('claude-sonnet-5');
   }
 };
 
@@ -226,7 +226,7 @@ function getHeaderInfo(req, res) {
     return res;
   }
 
-  const aiModel = req.headers['x-ai-model'] || 'anthropic:claude-sonnet-4-6';
+  const aiModel = req.headers['x-ai-model'] || 'anthropic:claude-sonnet-5';
   const sessionId = req.headers['x-session-id'];
 
   if ( !sessionId ) {
@@ -415,7 +415,6 @@ const server = createServer(async (req, res) => {
         model: getModel(aiModel),
         system: SYSTEM_PROMPT,
         messages: messages,
-        temperature: 0,
         tools,
         onError: ({ error }) => {
           logger.debug({ onError: error })
