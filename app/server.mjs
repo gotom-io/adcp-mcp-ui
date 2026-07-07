@@ -356,7 +356,7 @@ const server = createServer(async (req, res) => {
     }
 
     if(! chatConfig.serverChoices){
-      chatConfig.serverChoices = [{url: "https://dev-demo-mcp.gotom.io/mcp", label: "Dev Demo"},{url: "https://dev-goldbach-mcp.gotom.io", label: "Dev Goldbach"}]
+      chatConfig.serverChoices = [{url: "https://dev-demo-mcp.gotom.io/mcp", label: "Dev Demo"},{url: "https://dev-goldbach-mcp.gotom.io/mcp", label: "Dev Goldbach"}]
     }
 
     const html = template
