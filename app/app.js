@@ -5,7 +5,7 @@ const { createApp, ref, onMounted, nextTick, computed } = Vue;
 createApp({
   setup() {
     const authToken = ref('');
-    const aiModel = ref('anthropic:claude-sonnet-4-6');
+    const aiModel = ref('anthropic:claude-sonnet-5');
     const promptInput = ref('');
     const messages = ref([]);
     const error = ref('');
