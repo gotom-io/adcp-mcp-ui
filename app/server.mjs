@@ -133,8 +133,11 @@ get_products — Discover available inventory
 }
 Returns products with product_id, name, description, formats, pricing.
 Since domain is required, always use gotom.io as domain currently.
+
 create_media_buy — Reserve/activate a campaign. Keep in mind, try to only create one if you can. Instead of multiple. One create_media_buy with multiple packages.
-It's possible to add targeting_overlay with for frequency_cap e.g.:
+io_acceptance is mistakenly needed, so just fill in dummy values.
+Currency is CHF. \`total_budget\` you need to figure out, e.g. use the total calculated from the briefing. \`start_time\` and \`end_time\` are first start of the first package and last end of the last package.  
+Case no proposal
 {
   "tool": "create_media_buy",
   "params": {
@@ -162,10 +165,36 @@ It's possible to add targeting_overlay with for frequency_cap e.g.:
         "start_time": "2026-10-01T00:00:00Z",
         "end_time": "2026-10-31T23:59:59Z"
       }
-    ]
+    ],
+    "io_acceptance": {
+      "io_id": "IO-2026-XXXX",
+      "accepted_at": "2026-07-09T11:42:48Z",
+      "signatory": "Alban Grossenbacher"
+    }
   }
 }
+
+case proposal:
+{
+    "idempotency_key": "uuid-v4-here",
+    "account": {
+      "account_id": "gotom_dummy"
+    },
+    "brand": {
+      "domain": "gotom.io"
+    },
+  "proposal_id": "prop_abc123",
+  "total_budget": {
+    "amount": 10000,
+    "currency": "USD"
+  },
+  "start_time": "2026-02-01T00:00:00Z",
+  "end_time": "2026-02-28T23:59:59Z"
+}
+
 Returns { media_buy_id, status, packages } — may be async (status: "submitted" with a task_id to poll via tasks/get).
+
+
 get_media_buy_deliveries — Get delivery/performance data
 {
   "tool": "get_media_buy_deliveries",
