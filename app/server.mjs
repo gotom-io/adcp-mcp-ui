@@ -93,10 +93,11 @@ Your goal is to help the user achieve their task as efficiently and accurately a
 4. The whole point of getting the results from getProducts is that you display them in a way, that createMediaBuy can be executed with it.
 5. Only what you display is remembered. So to successfully call createMediaBuy, you need to display all IDs in the text response that is display.
 6. Omitting IDs will lead to a fatal error. Always output all IDs in all calls and responses. Example of IDs are product_id, account_id, media_buy_id, format_id, pricing_option_id and more.
-7. If getProducts returns values for forecast, make sure to include it as well, be sure to name the forecast values as "available impressions". Don't mention the budget with the forecast, only the impressions.
+7. If getProducts returns values for forecast, make sure to include it as well, be sure to name the forecast values as "available impressions". Don't mention the budget with the forecast, only the impressions. Product name must be combined as: name of platform - name of channel - name of advertising 
 8. In the format_id only display the id part, leave out agent_url, width and height.
 9. Display results after displaying it in paragraphs as well in tables.
 10. Don't mix results in the table inside the same column. Don't do: Audience/Channel inside the same column. Or Audience/Publisher. Make separate columns.
+11. Don't mention the account_id/accountId if the account_id you do use is gotom_dummy. Because your output is showed to an audience and it looks bad to see this gotom_dummy id even if it's accurate.
 
 When tools are available use them when the user gives you a call to action. 
 
@@ -117,6 +118,94 @@ For example:
 - If the user references something from a previous response, use the IDs/data from that response
 
 Follow the user's instructions carefully, ask clarifying questions when necessary, and provide clear, concise responses.
+
+Using AdCP MCP Tools
+Call seller agent tools via callTool(toolName, params):
+Since account_id is required, always send 'gotom_dummy' silently, unless provided by user. 'gotom_dummy' will fall back to the default adcpAccountId.
+get_products — Discover available inventory
+{
+  "tool": "get_products",
+  "params": {
+    "brief": "300x250 banner ads for coffee brands",
+    "buying_mode": "brief",
+    "account": { "account_id": "gotom_dummy" }
+  }
+}
+Returns products with product_id, name, description, formats, pricing.
+Since domain is required, always use gotom.io as domain currently.
+
+create_media_buy — Reserve/activate a campaign. Keep in mind, try to only create one if you can. Instead of multiple. One create_media_buy with multiple packages.
+io_acceptance is mistakenly needed, so just fill in dummy values.
+Currency is CHF. \`total_budget\` you need to figure out, e.g. use the total calculated from the briefing. \`start_time\` and \`end_time\` are first start of the first package and last end of the last package.  
+Case no proposal
+{
+  "tool": "create_media_buy",
+  "params": {
+    "idempotency_key": "uuid-v4-here",
+    "account": {
+      "account_id": "gotom_dummy"
+    },
+    "brand": {
+      "domain": "gotom.io"
+    },
+    "start_time": "2026-10-01T00:00:00Z",
+    "end_time": "2026-12-31T23:59:59Z",
+    "packages": [
+      {
+        "product_id": "prod_789",
+        "pricing_option_id": "pricing-option-id-here",
+        "budget": 5000,
+        "start_time": "2026-11-15T00:00:00Z",
+        "end_time": "2026-12-31T23:59:59Z"
+      },
+      {
+        "product_id": "prod_456",
+        "pricing_option_id": "pricing-option-id-here",
+        "budget": 3000,
+        "start_time": "2026-10-01T00:00:00Z",
+        "end_time": "2026-10-31T23:59:59Z"
+      }
+    ],
+    "io_acceptance": {
+      "io_id": "IO-2026-XXXX",
+      "accepted_at": "2026-07-09T11:42:48Z",
+      "signatory": "Alban Grossenbacher"
+    }
+  }
+}
+
+case proposal:
+{
+    "idempotency_key": "uuid-v4-here",
+    "account": {
+      "account_id": "gotom_dummy"
+    },
+    "brand": {
+      "domain": "gotom.io"
+    },
+  "proposal_id": "prop_abc123",
+  "total_budget": {
+    "amount": 10000,
+    "currency": "USD"
+  },
+  "start_time": "2026-02-01T00:00:00Z",
+  "end_time": "2026-02-28T23:59:59Z"
+}
+
+Returns { media_buy_id, status, packages } — may be async (status: "submitted" with a task_id to poll via tasks/get).
+
+
+get_media_buy_deliveries — Get delivery/performance data
+{
+  "tool": "get_media_buy_deliveries",
+  "params": {
+    "media_buy_ids": ["mbuy_123"],
+    "start_date": "2026-06-01",
+    "end_date": "2026-06-09",
+    "account": { "account_id": "gotom_dummy" }
+  }
+}
+Returns { reporting_period, media_buy_deliveries: [{ media_buy_id, status, totals: { impressions, spend, ... }, by_package }] }.
 `;
 
 // Get context history for a user session
@@ -291,7 +380,10 @@ const server = createServer(async (req, res) => {
     }
 
     if(! chatConfig.serverChoices){
-      chatConfig.serverChoices = [{url: "https://dev-demo-mcp.gotom.io", label: "Dev Demo"},{url: "https://dev-goldbach-mcp.gotom.io", label: "Dev Goldbach"}]
+      chatConfig.serverChoices = [
+          {url: "https://dev-demo-mcp.gotom.io/mcp", label: "Dev Demo"},
+          // {url: "https://dev-goldbach-mcp.gotom.io/mcp", label: "Dev Goldbach"},
+      ]
     }
 
     const html = template

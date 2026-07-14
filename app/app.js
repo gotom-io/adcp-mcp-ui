@@ -152,7 +152,7 @@ createApp({
           throw new Error(data.error || 'Failed to search logs');
         }
 
-        logs.value = data?.structuredContent || [];
+        logs.value = data?.structuredContent || data?.content.map((o) => o.text) || [];
         showLogs.value = true;
 
       } catch (err) {
