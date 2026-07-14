@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@adcp/sdk": "^11.2.0",
     "@ai-sdk/anthropic": "^3.0.54",
     "@ai-sdk/mcp": "^1.0.23",
     "@ai-sdk/openai": "^3.0.37",
