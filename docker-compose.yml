@@ -12,6 +12,8 @@ services:
             - ./app:/app
         ports:
             - '3851:3000'
+        networks:
+            - adcpnetwork
         environment:
             OPENAI_API_KEY: ${OPENAI_API_KEY:-}
             ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -19,4 +21,9 @@ services:
             BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
             BASIC_AUTH_PASS: ${BASIC_AUTH_PASS:-}
             MCP_SERVER_CHOICES: ${MCP_SERVER_CHOICES:-}
+
+networks:
+    adcpnetwork:
+        external: true
+        name: adcpnetwork
 
