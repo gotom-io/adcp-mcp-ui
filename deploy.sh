@@ -18,5 +18,6 @@ ssh "${REMOTE_HOST}" "
     --env-file /root/.adcp-mcp-ui.env \
     --restart unless-stopped \
     --volume /root/adcp-mcp-ui-logs:/app/logs \
+    --memory="100m" \
     ${IMAGE_NAME_MCP_UI}
 "
