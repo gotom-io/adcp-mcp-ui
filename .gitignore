@@ -1,3 +1,19 @@
+# Secrets & local environment
 .env
-app/adcp-mcp-ui-logs
 app/secrets/
+
+# Logs
+app/adcp-mcp-ui-logs
+*.log
+
+# IDE / editor configuration
+.idea/
+.vscode/
+*.iml
+
+# Local AI/dev-assistant tool state
+.opencode/
+
+# OS junk
+.DS_Store
+Thumbs.db
