@@ -4,14 +4,20 @@
  * Signing is OPT-IN via environment (this is a public repo — no key
  * material lives in the codebase, not even test keys):
  *
- *   ADCP_BUYER_PRIVATE_JWK   JSON-encoded private JWK (ed25519, with `d`)
- *   ADCP_BUYER_KID           key id published to the seller (must match
- *                            the JWK's `kid`)
- *   ADCP_BUYER_AGENT_URL     optional; informational agent URL stamped in
- *                            the signature context
+ *   ADCP_BUYER_PRIVATE_JWK_FILE  path to a JSON file holding the private
+ *                                JWK (ed25519, with `d`) — the recommended
+ *                                way; keep the file under app/secrets/
+ *                                (gitignored). Generate one with
+ *                                `node scripts/gen-buyer-key.mjs`.
+ *   ADCP_BUYER_PRIVATE_JWK       alternative: the private JWK inline as a
+ *                                single-line JSON string
+ *   ADCP_BUYER_KID               key id published to the seller (must match
+ *                                the JWK's `kid`)
+ *   ADCP_BUYER_AGENT_URL         optional; informational agent URL stamped
+ *                                in the signature context
  *
- * When the env vars are absent, everything degrades to plain fetch and the
- * UI behaves exactly as before (API-key auth only).
+ * When neither key source is configured, everything degrades to plain
+ * fetch and the UI behaves exactly as before (API-key auth only).
  *
  * Flow per seller URL:
  *   1. `primeSellerCapability` makes ONE unsigned `get_adcp_capabilities`
@@ -23,25 +29,56 @@
  *      `warn_for` and leaves everything else (initialize, tools/list,
  *      get_products, …) unsigned.
  */
+import { readFileSync } from 'node:fs';
+import { dirname, isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   buildCapabilityCacheKey,
   createAgentSignedFetch,
   defaultCapabilityCache,
 } from '@adcp/sdk/signing';
 
+// Relative ADCP_BUYER_PRIVATE_JWK_FILE paths resolve against THIS directory
+// (the app dir), so `secrets/buyer-private.jwk` works both in docker
+// (workdir /app) and when running server.mjs from anywhere on the host.
+const APP_DIR = dirname(fileURLToPath(import.meta.url));
+
 export function signingEnabled() {
-  return Boolean(process.env.ADCP_BUYER_PRIVATE_JWK && process.env.ADCP_BUYER_KID);
+  return Boolean(
+    (process.env.ADCP_BUYER_PRIVATE_JWK_FILE || process.env.ADCP_BUYER_PRIVATE_JWK) &&
+      process.env.ADCP_BUYER_KID,
+  );
+}
+
+function loadPrivateJwk() {
+  let file = process.env.ADCP_BUYER_PRIVATE_JWK_FILE;
+  if (file && !isAbsolute(file)) file = resolve(APP_DIR, file);
+  const raw = file ? readFileSync(file, 'utf8') : process.env.ADCP_BUYER_PRIVATE_JWK;
+  const jwk = JSON.parse(raw);
+  if (!jwk.d) {
+    throw new Error(
+      `Buyer signing key ${file ? `file ${file}` : 'env ADCP_BUYER_PRIVATE_JWK'} is not a PRIVATE JWK (missing "d")`,
+    );
+  }
+  return jwk;
 }
 
 function buyerSigningConfig() {
   return {
     kid: process.env.ADCP_BUYER_KID,
     alg: 'ed25519',
-    private_key: JSON.parse(process.env.ADCP_BUYER_PRIVATE_JWK),
+    private_key: loadPrivateJwk(),
     // Informational on the signer side; sellers resolving keys via
     // brand.json discovery would fetch this origin. Sellers that pin the
     // key directly (StaticJwksResolver) ignore it.
     agent_url: process.env.ADCP_BUYER_AGENT_URL ?? 'https://buyer.invalid',
+    // Also sign ops the seller lists in `supported_for` (e.g. get_products:
+    // unsigned works with baseline pricing, signed may unlock buyer-specific
+    // pricing). Without this flag only required_for/warn_for ops are signed.
+    sign_supported: true,
+    // Cold-cache safety net: the spend-committing op is signed even when
+    // capability priming failed (a cold cache otherwise means "sign nothing").
+    always_sign: ['create_media_buy'],
   };
 }
 

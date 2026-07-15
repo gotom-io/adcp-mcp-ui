@@ -65,6 +65,15 @@ export class SignedHttpTransport {
       const sessionId = response.headers.get('mcp-session-id');
       if (sessionId) this.sessionId = sessionId;
 
+      // Observability: the goTom seller reports which authentication
+      // actually succeeded (signature | api_key | anonymous | none). Log it
+      // per tool call so "did my signature work?" is answerable from the
+      // buyer's own log.
+      const authMethod = response.headers.get('x-adcp-auth-method');
+      if (authMethod && message?.method === 'tools/call') {
+        console.log(`[signing] ${message.params?.name ?? 'tools/call'} → authenticated via ${authMethod}`);
+      }
+
       if (response.status === 202) return; // accepted notification
 
       if (!response.ok) {

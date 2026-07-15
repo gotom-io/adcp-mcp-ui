@@ -12,7 +12,7 @@ import path from 'node:path';
 import * as util from "node:util";
 import { getMcpSessionIdShort } from "./shared.mjs";
 import { SignedHttpTransport } from './signed-http-transport.mjs';
-import { createBuyerSignedFetch, primeSellerCapability } from './signing.mjs';
+import { createBuyerSignedFetch, primeSellerCapability, signingEnabled } from './signing.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
@@ -264,7 +264,10 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl) {
   const sessionId = cacheKey.split(cacheKeySeparator)[2];
   const xMcpSessionId = getMcpSessionIdShort(sessionId);
   const headers = {
-    'x-adcp-auth': adcpAuth,
+    // Signature-only mode sends NO x-adcp-auth — the seller must then
+    // authenticate the RFC 9421 signature (or reject). Never send an empty
+    // header; some verifiers treat it as a present-but-invalid credential.
+    ...(adcpAuth ? { 'x-adcp-auth': adcpAuth } : {}),
     'x-mcp-session-id': xMcpSessionId,
     'Authorization': `Basic ${ Buffer.from(`${ process.env.BASIC_AUTH_USER }:${ process.env.BASIC_AUTH_PASS }`).toString('base64') }`
   };
@@ -307,8 +310,14 @@ const createSecureCookie = (name, value, maxAge = 31536000) => {
 
 
 function getHeaderInfo(req, res) {
-  const adcpAuth = req.headers['x-adcp-auth'];
-  if ( !adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1 ) {
+  let adcpAuth = req.headers['x-adcp-auth'];
+  // Signature-only mode: when RFC 9421 signing is configured, a MISSING API
+  // key is allowed — the request to the seller then authenticates via the
+  // request signature alone (no x-adcp-auth header is forwarded). A key that
+  // IS present must still be valid, so typos never silently downgrade auth.
+  if (!adcpAuth && signingEnabled()) {
+    adcpAuth = '';
+  } else if ( !adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1 ) {
     res.statusCode = 403;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication (add the API key to the .env variable VALID_ADCP_AUTH_KEYS)' }));
