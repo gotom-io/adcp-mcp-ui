@@ -1,0 +1,206 @@
+# adcp-mcp-ui
+
+A small Node/HTTP chat UI that talks to an **AdCP seller MCP server** on behalf of a
+buyer. It wraps an LLM (OpenAI or Anthropic) with the AdCP tools exposed by one or
+more seller MCP endpoints, and can optionally sign outbound MCP calls with
+**RFC 9421 HTTP Message Signatures**.
+
+- App entry point: [`app/server.mjs`](app/server.mjs) (plain `node:http`, no framework)
+- Request signing: [`app/signing.mjs`](app/signing.mjs) + [`app/signed-http-transport.mjs`](app/signed-http-transport.mjs)
+- Runs on port **3851** (host) → **3000** (container)
+
+> This is a **public** repo. No key material or private code lives here — not even
+> test keys. Everything secret comes from your local `.env` / `app/secrets/`, both
+> gitignored.
+
+---
+
+## Prerequisites
+
+- **Docker** + **Docker Compose** (the supported way to run it)
+- **Node 20+** on the host — only needed to run the key-generation script
+- SSH access to the `gotom-io` GitHub org (to clone)
+- At least one LLM key: **OpenAI** and/or **Anthropic**
+- The URL of an **AdCP seller MCP server** to point at (a locally-running seller +
+  ngrok, or a shared dev endpoint like `https://dev-demo-mcp.gotom.io`)
+
+---
+
+## Quick start (5 steps)
+
+```bash
+# 1. Clone
+git clone git@github.com:gotom-io/adcp-mcp-ui.git
+cd adcp-mcp-ui
+
+# 2. Create your env file and fill it in (see "Configuration" below)
+cp .env.example .env
+${EDITOR:-nano} .env
+
+# 3. Create the shared docker network (idempotent — safe to re-run)
+docker network create adcpnetwork 2>/dev/null || true
+
+# 4. Build and start
+docker compose up --build
+
+# 5. Open the UI
+open http://localhost:3851   # or just visit it in a browser
+```
+
+That's the whole happy path. Signed requests are **optional** and off by default —
+see the section further down.
+
+---
+
+## Configuration
+
+Copy `.env.example` → `.env` and set the following. Only `.env` is read; the compose
+file passes these through to the container.
+
+| Variable | What it is | Required? |
+|---|---|---|
+| `HOST_UID` / `HOST_GID` | Your host user/group id so container-written files are owned by you. Get them with `id -u` / `id -g`. | Yes |
+| `OPENAI_API_KEY` | OpenAI key. | One of OpenAI/Anthropic |
+| `ANTHROPIC_API_KEY` | Anthropic key. | One of OpenAI/Anthropic |
+| `VALID_ADCP_AUTH_KEYS` | Comma-separated list of `x-adcp-auth` values the UI accepts / uses toward the seller (e.g. `1,2,3` in dev). | Yes |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | HTTP Basic credentials sent with every seller MCP request (fronts the goTom backend). | Yes |
+| `MCP_SERVER_CHOICES` | JSON array of seller endpoints shown in the UI dropdown. See below. | Yes |
+| `ADCP_BUYER_*` | RFC 9421 request signing. Leave unset to disable. | No (opt-in) |
+
+### Where to get each value
+
+None of these are in the repo (it's public) — here's the source for each:
+
+- **`OPENAI_API_KEY`** — create one at <https://platform.openai.com/api-keys>
+  (or use a shared team key).
+- **`ANTHROPIC_API_KEY`** — create one at <https://console.anthropic.com/settings/keys>
+  (or use a shared team key).
+- **`VALID_ADCP_AUTH_KEYS`** — these are **buyer API keys issued by the seller**.
+  The seller maps each key to a buyer principal in its instance config, so you can't
+  invent your own. Ask whoever operates the seller endpoint you're targeting
+  (for goTom devs: the keys live in the seller's `app/config/instances/` config —
+  ask the team for a dev key, or add yourself one if you run the seller locally).
+- **`BASIC_AUTH_USER` / `BASIC_AUTH_PASS`** — HTTP Basic credentials of the
+  nginx/SSL terminator fronting the seller. Ask the team; if you run the seller
+  locally without a Basic Auth proxy, any non-empty dummy values work (the header
+  is sent but nothing checks it).
+- **`MCP_SERVER_CHOICES`** — the seller endpoint URL(s). Either your locally
+  running seller (its ngrok URL) or a shared dev endpoint from the team.
+- **`ADCP_BUYER_*` (signing)** — you generate this keypair yourself; see
+  ["Enabling signed requests"](#enabling-signed-requests-rfc-9421--optional) below.
+  Only the *registration* of your public key happens on the seller side.
+
+### `MCP_SERVER_CHOICES`
+
+A single-line JSON array of `{ "url", "label" }` objects:
+
+```env
+MCP_SERVER_CHOICES=[{"url": "https://your-ngrok-or-local-seller", "label": "Local"}, {"url": "https://dev-demo-mcp.gotom.io", "label": "Dev Demo"}]
+```
+
+If you're running the seller (`sdk-adcp-seller`) locally, put its ngrok URL here.
+
+> **Local cookie gotcha:** the UI marks its session cookie `Secure` unless
+> `GOTOM_ENV=local`, and `Secure` cookies are dropped over plain `http://localhost`.
+> `GOTOM_ENV` is **not** currently wired through `docker-compose.yml`, so if you hit
+> cookie issues in local dev, add `GOTOM_ENV` to the `environment:` block in
+> [`docker-compose.yml`](docker-compose.yml) and set `GOTOM_ENV=local` in `.env`.
+
+---
+
+## Enabling signed requests (RFC 9421) — optional
+
+Signing is **opt-in**. When the `ADCP_BUYER_*` vars are unset, the app degrades to
+plain fetch with API-key auth and behaves exactly as before. When enabled, the app:
+
+1. makes one **unsigned** `get_adcp_capabilities` call to learn which operations the
+   seller requires signatures for, then
+2. routes MCP traffic through a fetch that signs **exactly those** operations
+   (`create_media_buy` is always signed as a cold-cache safety net).
+
+### Setup
+
+```bash
+# 1. Generate an ed25519 keypair.
+#    Writes the PRIVATE JWK to app/secrets/buyer-private.jwk (chmod 600, gitignored)
+#    and prints the PUBLIC JWK.
+node scripts/gen-buyer-key.mjs            # or: node scripts/gen-buyer-key.mjs my-buyer-kid
+
+# 2. Give the PUBLIC JWK (printed to stdout) to the seller so they register it.
+#    The seller maps your `kid` to a buyer principal. For goTom devs: it goes
+#    into `instanceSigningKeys` in the seller's `app/config/instances/` config —
+#    ask the team, or add it yourself if you run the seller locally.
+
+# 3. Add to .env  (NOTE: path is relative to the app/ dir — no leading "app/"):
+#    ADCP_BUYER_PRIVATE_JWK_FILE=secrets/buyer-private.jwk
+#    ADCP_BUYER_KID=<the kid printed by the script>
+
+# 4. Restart
+docker compose up --build
+```
+
+Optional signing vars:
+
+- `ADCP_BUYER_PRIVATE_JWK` — inline single-line private JWK instead of a file.
+- `ADCP_BUYER_AGENT_URL` — informational agent origin stamped into the signature
+  context (only relevant for sellers that resolve keys via `brand.json` discovery;
+  ignored by sellers that pin your public key directly).
+
+### Verifying it works
+
+On startup with signing on, the logs show which ops the seller requires:
+
+```
+[signing] seller <url> requires signatures for: ["create_media_buy", ...]
+```
+
+If priming fails (seller unreachable / doesn't advertise signing) the app **fails
+open** — signing stays off for that seller and retries shortly. Watch logs with:
+
+```bash
+docker compose logs -f app
+```
+
+Common mistakes:
+
+- **`... is not a PRIVATE JWK (missing "d")`** — you pointed at the public JWK.
+  Use `app/secrets/buyer-private.jwk`.
+- **File not found** — remember the path is relative to `app/`, so it's
+  `secrets/buyer-private.jwk`, not `app/secrets/buyer-private.jwk`.
+- **Seller rejects the signature** — your public JWK isn't registered with the
+  seller, or your `ADCP_BUYER_KID` doesn't match the JWK's `kid`.
+
+---
+
+## Everyday commands
+
+```bash
+docker compose up --build      # build + run (foreground)
+docker compose up -d           # run detached
+docker compose logs -f app     # tail logs
+docker compose down            # stop
+```
+
+Logs also land in `app/adcp-mcp-ui-logs/` on the host (gitignored).
+
+## Deployment
+
+`./deploy.sh` builds the image and ships it to the `gotom-adcp-mcp` host via
+`docker save | ssh 'docker load'`, then restarts the container there using
+`/root/.adcp-mcp-ui.env` on the server. Requires SSH access to that host.
+
+## Repo layout
+
+```
+app/
+  server.mjs                 HTTP server + chat loop + MCP client wiring
+  signing.mjs                RFC 9421 opt-in signing (key loading, capability priming)
+  signed-http-transport.mjs  MCP transport that plugs in the signing fetch
+  index.template.html        UI shell
+  secrets/                   your private JWK lives here (gitignored)
+scripts/
+  gen-buyer-key.mjs          ed25519 keypair generator for buyer signing
+docker/Dockerfile            node:lts image
+docker-compose.yml           service + external adcpnetwork
+deploy.sh                    build & ship to the prod host
+```

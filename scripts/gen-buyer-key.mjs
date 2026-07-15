@@ -8,8 +8,9 @@
  * chmod 600) and prints the PUBLIC JWK — hand that to the seller so they
  * can register it (the seller maps your kid to a principal).
  *
- * Then configure .env:
- *   ADCP_BUYER_PRIVATE_JWK_FILE=app/secrets/buyer-private.jwk
+ * Then configure .env (the path is resolved against the app/ dir, so it is
+ * written WITHOUT the leading `app/`):
+ *   ADCP_BUYER_PRIVATE_JWK_FILE=secrets/buyer-private.jwk
  *   ADCP_BUYER_KID=<the kid>
  */
 import { generateKeyPairSync } from 'node:crypto';
@@ -31,4 +32,4 @@ writeFileSync(outFile, JSON.stringify(privateJwk, null, 2) + '\n', { mode: 0o600
 console.log(`Private JWK written to ${outFile} (never share or commit this file)\n`);
 console.log('PUBLIC JWK — register this with the seller:\n');
 console.log(JSON.stringify(publicJwk, null, 2));
-console.log(`\nAdd to .env:\n  ADCP_BUYER_PRIVATE_JWK_FILE=app/secrets/buyer-private.jwk\n  ADCP_BUYER_KID=${kid}`);
+console.log(`\nAdd to .env (path is relative to app/, so no leading "app/"):\n  ADCP_BUYER_PRIVATE_JWK_FILE=secrets/buyer-private.jwk\n  ADCP_BUYER_KID=${kid}`);
