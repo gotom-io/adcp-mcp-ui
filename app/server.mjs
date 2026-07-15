@@ -403,6 +403,11 @@ const server = createServer(async (req, res) => {
       ]
     }
 
+    // Tell the frontend whether RFC 9421 signing is configured: with a
+    // signing key present, an empty API-key field is a valid state
+    // (signature-only sessions) and the client-side gate must not block it.
+    chatConfig.signingEnabled = signingEnabled();
+
     const html = template
         .replaceAll("{{ WINDOW_CHAT_CONFIG }}", JSON.stringify(chatConfig, ' ', 2))
 

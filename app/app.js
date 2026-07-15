@@ -14,6 +14,9 @@ createApp({
     const inputArea = ref(null);
     const serverChoices = ref(window.chat_config.serverChoices);
     const mcpServer = ref(serverChoices.value[0].url);
+    // Server-injected: true when the backend holds an RFC 9421 signing key —
+    // an empty API-key field then means "signature-only session".
+    const signingEnabled = ref(window.chat_config?.signingEnabled === true);
     console.log("window.chat_config", window.chat_config);
     const showLogs = ref(false);
     const logs = ref('');
@@ -121,7 +124,10 @@ createApp({
 
     const getRequestHeaders = () => ({
       'Content-Type': 'application/json',
-      'x-adcp-auth': authToken.value,
+      // Omit the auth header entirely when the field is empty — with RFC
+      // 9421 signing configured server-side, the request is then
+      // authenticated purely via the request signature.
+      ...(authToken.value ? { 'x-adcp-auth': authToken.value } : {}),
       'x-mcp-server': mcpServer.value,
       'x-ai-model': aiModel.value,
       'x-session-id': sessionId,
@@ -181,7 +187,9 @@ createApp({
       const text = promptInput.value.trim();
       if (!text || loading.value) return;
       
-      if (!authToken.value) {
+      // An empty API key is only valid when the server signs requests
+      // (RFC 9421 signature-only session) — otherwise keep the gate.
+      if (!authToken.value && !window.chat_config?.signingEnabled) {
         error.value = 'Please enter an API key in the sidebar before sending a message.';
         return;
       }
@@ -254,6 +262,7 @@ createApp({
 
     return {
       authToken,
+      signingEnabled,
       mcpServer,
       aiModel,
       promptInput, 

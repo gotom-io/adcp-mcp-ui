@@ -70,7 +70,7 @@
 
         <div class="config-group">
           <label for="auth">API Key</label>
-          <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" placeholder="Enter your API key...">
+          <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" :placeholder="signingEnabled ? 'Empty = signed requests (RFC 9421)' : 'Enter your API key...'">
         </div>
       </div>
       
@@ -207,7 +207,9 @@
             ref="inputArea"
             @input="adjustTextareaHeight"
           ></textarea>
-          <button class="send-btn" @click="submit" :disabled="loading || !promptInput || !authToken">
+          <!-- An empty API key is allowed when the server signs requests
+               (RFC 9421 signature-only session) — see signingEnabled. -->
+          <button class="send-btn" @click="submit" :disabled="loading || !promptInput || (!authToken && !signingEnabled)">
             <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
         </div>
