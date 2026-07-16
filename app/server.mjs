@@ -12,7 +12,7 @@ import path from 'node:path';
 import * as util from "node:util";
 import { getMcpSessionIdShort } from "./shared.mjs";
 import { SignedHttpTransport } from './signed-http-transport.mjs';
-import { createBuyerSignedFetch, primeSellerCapability, signatureSessionsAvailable, signingEnabled, signingPasswordConfigured, signingPasswordOk } from './signing.mjs';
+import { buyerPublicOrigin, createBuyerSignedFetch, primeSellerCapability, publicJwkFromPrivate, signatureSessionsAvailable, signingEnabled, signingPasswordConfigured, signingPasswordOk } from './signing.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
@@ -371,10 +371,70 @@ async function getBody(req) {
   });
 }
 
+/**
+ * AdCP discovery documents for THIS buyer — the buy-side mirror of what the
+ * seller serves. Auth-free by design (identity documents must be publicly
+ * readable) and entirely env-derived (public repo). Only the PUBLIC key
+ * half is ever emitted (publicJwkFromPrivate strips `d` by construction).
+ * Returns true when the request was handled.
+ */
+function handleWellKnownRequest(req, res) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+  const pathname = req.url.split('?')[0];
+  if (pathname !== '/.well-known/brand.json' && pathname !== '/.well-known/jwks.json') return false;
+
+  if (!signingEnabled()) {
+    res.statusCode = 404;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'No buyer signing identity configured (ADCP_BUYER_* env unset) — nothing to publish' }));
+    return true;
+  }
+
+  let body;
+  try {
+    if (pathname === '/.well-known/jwks.json') {
+      body = { keys: [publicJwkFromPrivate()] };
+    } else {
+      const origin = buyerPublicOrigin() ?? `http://${req.headers.host}`;
+      // `||` on purpose: docker-compose passes unset vars as EMPTY STRINGS.
+      body = {
+        name: process.env.ADCP_BUYER_NAME || 'goTom AdCP buyer UI',
+        agents: [
+          {
+            type: 'buying',
+            id: process.env.ADCP_BUYER_AGENT_ID || 'adcp-mcp-ui-buyer',
+            url: process.env.ADCP_BUYER_AGENT_URL || `http://${req.headers.host}/`,
+            // Explicit jwks_uri always: the spec's well-known fallback has
+            // same-origin restrictions; being explicit removes the ambiguity.
+            jwks_uri: `${origin}/.well-known/jwks.json`,
+          },
+        ],
+        last_updated: new Date().toISOString(),
+      };
+    }
+  } catch (err) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: `Failed to build discovery document: ${err.message}` }));
+    return true;
+  }
+
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.end(req.method === 'HEAD' ? undefined : JSON.stringify(body, null, 2));
+  return true;
+}
+
 const server = createServer(async (req, res) => {
 
   let logger = getLogger();
   logger.setMcpRequestId(NO_ID_FOUND);
+
+  // AdCP discovery documents (this buyer's identity) — served before
+  // everything else, no auth required.
+  if (handleWellKnownRequest(req, res)) return;
+
   // GET /api/settings - Read settings from HttpOnly cookies
   if (req.method === 'GET' && req.url === '/api/settings') {
     const cookies = parseCookies(req);

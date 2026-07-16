@@ -140,6 +140,29 @@ node scripts/gen-buyer-key.mjs            # or: node scripts/gen-buyer-key.mjs m
 docker compose up --build
 ```
 
+### Your buyer identity documents (served automatically)
+
+With signing configured, the app publishes this buyer's AdCP identity —
+the buy-side mirror of what a seller serves:
+
+- `GET /.well-known/brand.json` — who this buyer is: a `buying` agent entry
+  with `url` = `ADCP_BUYER_AGENT_URL` and an explicit `jwks_uri`.
+- `GET /.well-known/jwks.json` — the **public** half of your signing key
+  (derived from the private JWK by stripping `d`; the private scalar is
+  never served).
+
+Sellers running the AdCP discovery chain resolve your signing key through
+these documents instead of having it hand-registered. Set
+`ADCP_BUYER_AGENT_URL` to the deployment's public URL
+(e.g. `https://adcp-ui.gotom.io/`) so the published URLs are correct.
+
+```bash
+curl -s http://localhost:3851/.well-known/brand.json | jq
+curl -s http://localhost:3851/.well-known/jwks.json | jq   # must contain NO "d"
+```
+
+With signing unset both routes return 404 (no identity to publish).
+
 ### The signing password (why it exists)
 
 The signing key belongs to the **server**, not to the person in the

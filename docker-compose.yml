@@ -26,6 +26,8 @@ services:
             ADCP_BUYER_PRIVATE_JWK: ${ADCP_BUYER_PRIVATE_JWK:-}
             ADCP_BUYER_KID: ${ADCP_BUYER_KID:-}
             ADCP_BUYER_AGENT_URL: ${ADCP_BUYER_AGENT_URL:-}
+            ADCP_BUYER_NAME: ${ADCP_BUYER_NAME:-}
+            ADCP_BUYER_AGENT_ID: ${ADCP_BUYER_AGENT_ID:-}
             # Gate for signature-only sessions — see .env.example
             ADCP_SIGNING_PASSWORD: ${ADCP_SIGNING_PASSWORD:-}
 

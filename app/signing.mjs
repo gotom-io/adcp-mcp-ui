@@ -73,6 +73,42 @@ export function signatureSessionsAvailable() {
   return signingEnabled() && signingPasswordConfigured();
 }
 
+/**
+ * The PUBLIC half of the configured buyer key — served at
+ * /.well-known/jwks.json. Derived from the private JWK by OMITTING the
+ * secret scalar `d` (allowlist copy: the served object is built from named
+ * public fields only, so it structurally cannot leak `d`).
+ */
+export function publicJwkFromPrivate() {
+  const jwk = loadPrivateJwk();
+  const { kty, crv, x, kid, alg, use, adcp_use } = jwk;
+  return {
+    kty,
+    crv,
+    x,
+    ...(kid !== undefined && { kid }),
+    ...(alg !== undefined && { alg }),
+    ...(use !== undefined && { use }),
+    ...(adcp_use !== undefined && { adcp_use }),
+    key_ops: ['verify'],
+  };
+}
+
+/**
+ * Canonical public origin of this buyer (for brand.json's jwks_uri):
+ * derived from ADCP_BUYER_AGENT_URL when set (e.g. https://adcp-ui.gotom.io),
+ * else null — the well-known route then falls back to the request Host.
+ */
+export function buyerPublicOrigin() {
+  const url = process.env.ADCP_BUYER_AGENT_URL;
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
 /** Constant-time check of the user-supplied signing password. */
 export function signingPasswordOk(provided) {
   const expected = process.env.ADCP_SIGNING_PASSWORD;
