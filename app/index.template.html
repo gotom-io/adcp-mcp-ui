@@ -72,6 +72,14 @@
           <label for="auth">API Key</label>
           <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" :placeholder="signingEnabled ? 'Empty = signed requests (RFC 9421)' : 'Enter your API key...'">
         </div>
+
+        <!-- Signature-only sessions are gated by a shared password: the
+             signing key belongs to the SERVER, so without this gate anyone
+             reaching a public deployment could sign as the buyer. -->
+        <div class="config-group" v-if="signingEnabled">
+          <label for="signing-password">Signing Password</label>
+          <input type="password" id="signing-password" class="input-field" v-model="signingPassword" @input="saveSigningPasswordCookie" placeholder="Required when API key is empty">
+        </div>
       </div>
       
       <div class="sidebar-footer">
@@ -207,9 +215,9 @@
             ref="inputArea"
             @input="adjustTextareaHeight"
           ></textarea>
-          <!-- An empty API key is allowed when the server signs requests
-               (RFC 9421 signature-only session) — see signingEnabled. -->
-          <button class="send-btn" @click="submit" :disabled="loading || !promptInput || (!authToken && !signingEnabled)">
+          <!-- An empty API key is allowed only for signature-only sessions
+               (server-side RFC 9421 signing) WITH the signing password. -->
+          <button class="send-btn" @click="submit" :disabled="loading || !promptInput || (!authToken && !(signingEnabled && signingPassword))">
             <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
         </div>

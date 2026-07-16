@@ -134,10 +134,25 @@ node scripts/gen-buyer-key.mjs            # or: node scripts/gen-buyer-key.mjs m
 # 3. Add to .env  (NOTE: path is relative to the app/ dir — no leading "app/"):
 #    ADCP_BUYER_PRIVATE_JWK_FILE=secrets/buyer-private.jwk
 #    ADCP_BUYER_KID=<the kid printed by the script>
+#    ADCP_SIGNING_PASSWORD=<a password you choose>
 
 # 4. Restart
 docker compose up --build
 ```
+
+### The signing password (why it exists)
+
+The signing key belongs to the **server**, not to the person in the
+browser. Without a gate, anyone who can reach a deployed UI could leave
+the API-key field empty and make signed requests **as your buyer
+identity**. So signature-only sessions (empty API-key field) additionally
+require the **Signing Password** (sidebar field, checked server-side
+against `ADCP_SIGNING_PASSWORD`).
+
+- `ADCP_SIGNING_PASSWORD` unset ⇒ signature-only sessions are refused
+  entirely (fail closed); sessions with a valid API key still work and
+  still get their requests signed on top.
+- Users with a valid API key never need the password.
 
 Optional signing vars:
 
@@ -169,6 +184,10 @@ Common mistakes:
   `secrets/buyer-private.jwk`, not `app/secrets/buyer-private.jwk`.
 - **Seller rejects the signature** — your public JWK isn't registered with the
   seller, or your `ADCP_BUYER_KID` doesn't match the JWK's `kid`.
+- **`Forbidden: signature-only sessions are disabled`** — set
+  `ADCP_SIGNING_PASSWORD` in `.env` and restart.
+- **`Forbidden: missing or wrong signing password`** — fill the "Signing
+  Password" sidebar field (or use an API key instead).
 
 ---
 

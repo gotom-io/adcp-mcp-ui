@@ -12,7 +12,7 @@ import path from 'node:path';
 import * as util from "node:util";
 import { getMcpSessionIdShort } from "./shared.mjs";
 import { SignedHttpTransport } from './signed-http-transport.mjs';
-import { createBuyerSignedFetch, primeSellerCapability, signingEnabled } from './signing.mjs';
+import { createBuyerSignedFetch, primeSellerCapability, signatureSessionsAvailable, signingEnabled, signingPasswordConfigured, signingPasswordOk } from './signing.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
@@ -315,7 +315,26 @@ function getHeaderInfo(req, res) {
   // key is allowed — the request to the seller then authenticates via the
   // request signature alone (no x-adcp-auth header is forwarded). A key that
   // IS present must still be valid, so typos never silently downgrade auth.
+  //
+  // SECURITY GATE: the signing key authenticates THIS SERVER, not the
+  // browser user — on a publicly reachable UI, an ungated signature-only
+  // session would let anyone act as this buyer. So the user must present
+  // the shared signing password (x-signing-password header, entered in the
+  // sidebar). Fail closed: no ADCP_SIGNING_PASSWORD configured ⇒ no
+  // signature-only sessions at all.
   if (!adcpAuth && signingEnabled()) {
+    if (!signingPasswordConfigured()) {
+      res.statusCode = 403;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Forbidden: signature-only sessions are disabled — set ADCP_SIGNING_PASSWORD in the .env (or use an API key)' }));
+      return res;
+    }
+    if (!signingPasswordOk(req.headers['x-signing-password'])) {
+      res.statusCode = 403;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Forbidden: missing or wrong signing password (enter it in the sidebar, or use an API key)' }));
+      return res;
+    }
     adcpAuth = '';
   } else if ( !adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1 ) {
     res.statusCode = 403;
@@ -364,6 +383,7 @@ const server = createServer(async (req, res) => {
       adcp_auth: cookies.adcp_auth || '',
       mcp_server: cookies.mcp_server || '',
       ai_model: cookies.ai_model || '',
+      signing_password: cookies.signing_password || '',
     }));
     return;
   }
@@ -381,6 +401,9 @@ const server = createServer(async (req, res) => {
     }
     if (body.ai_model !== undefined) {
       cookiesToSet.push(createSecureCookie('ai_model', body.ai_model));
+    }
+    if (body.signing_password !== undefined) {
+      cookiesToSet.push(createSecureCookie('signing_password', body.signing_password));
     }
 
     res.setHeader('Set-Cookie', cookiesToSet);
@@ -406,7 +429,10 @@ const server = createServer(async (req, res) => {
     // Tell the frontend whether RFC 9421 signing is configured: with a
     // signing key present, an empty API-key field is a valid state
     // (signature-only sessions) and the client-side gate must not block it.
-    chatConfig.signingEnabled = signingEnabled();
+    // Signature-only sessions are only offered when the gate password is
+    // configured too — a signing key without the password stays API-key-only
+    // from the browser's point of view (fail closed on a public UI).
+    chatConfig.signingEnabled = signatureSessionsAvailable();
 
     const html = template
         .replaceAll("{{ WINDOW_CHAT_CONFIG }}", JSON.stringify(chatConfig, ' ', 2))

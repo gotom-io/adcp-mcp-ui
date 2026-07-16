@@ -5,6 +5,7 @@ const { createApp, ref, onMounted, nextTick, computed } = Vue;
 createApp({
   setup() {
     const authToken = ref('');
+    const signingPassword = ref('');
     const aiModel = ref('anthropic:claude-sonnet-5');
     const promptInput = ref('');
     const messages = ref([]);
@@ -73,6 +74,7 @@ createApp({
     const saveCookie = () => saveSetting('adcp_auth', authToken.value);
     const saveServerCookie = () => saveSetting('mcp_server', mcpServer.value);
     const saveModelCookie = () => saveSetting('ai_model', aiModel.value);
+    const saveSigningPasswordCookie = () => saveSetting('signing_password', signingPassword.value);
 
     // Load settings from server on mount
     onMounted(async () => {
@@ -88,6 +90,9 @@ createApp({
         }
         if (settings.ai_model) {
           aiModel.value = settings.ai_model;
+        }
+        if (settings.signing_password) {
+          signingPassword.value = settings.signing_password;
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -126,8 +131,11 @@ createApp({
       'Content-Type': 'application/json',
       // Omit the auth header entirely when the field is empty — with RFC
       // 9421 signing configured server-side, the request is then
-      // authenticated purely via the request signature.
+      // authenticated purely via the request signature. Signature-only
+      // sessions require the signing password (checked server-side; the
+      // signing key must not be usable by anonymous visitors).
       ...(authToken.value ? { 'x-adcp-auth': authToken.value } : {}),
+      ...(!authToken.value && signingPassword.value ? { 'x-signing-password': signingPassword.value } : {}),
       'x-mcp-server': mcpServer.value,
       'x-ai-model': aiModel.value,
       'x-session-id': sessionId,
@@ -188,9 +196,12 @@ createApp({
       if (!text || loading.value) return;
       
       // An empty API key is only valid when the server signs requests
-      // (RFC 9421 signature-only session) — otherwise keep the gate.
-      if (!authToken.value && !window.chat_config?.signingEnabled) {
-        error.value = 'Please enter an API key in the sidebar before sending a message.';
+      // (RFC 9421 signature-only session) AND the user presents the signing
+      // password — the signing key must not be usable anonymously.
+      if (!authToken.value && !(window.chat_config?.signingEnabled && signingPassword.value)) {
+        error.value = window.chat_config?.signingEnabled
+          ? 'Enter an API key OR the signing password in the sidebar before sending a message.'
+          : 'Please enter an API key in the sidebar before sending a message.';
         return;
       }
       
@@ -262,16 +273,18 @@ createApp({
 
     return {
       authToken,
+      signingPassword,
       signingEnabled,
       mcpServer,
       aiModel,
-      promptInput, 
-      messages, 
+      promptInput,
+      messages,
       error,
-      loading, 
+      loading,
       saveCookie,
       saveServerCookie,
       saveModelCookie,
+      saveSigningPasswordCookie,
       submit,
       handleKeydown,
       clearHistory,

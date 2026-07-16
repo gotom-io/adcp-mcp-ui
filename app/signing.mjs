@@ -15,6 +15,15 @@
  *                                the JWK's `kid`)
  *   ADCP_BUYER_AGENT_URL         optional; informational agent URL stamped
  *                                in the signature context
+ *   ADCP_SIGNING_PASSWORD        REQUIRED for signature-only sessions: the
+ *                                shared password a browser user must enter
+ *                                instead of an API key. Without it, the
+ *                                signing key would be usable by ANYONE who
+ *                                can reach this (possibly public) UI — the
+ *                                key authenticates this server, not the
+ *                                human. Unset ⇒ signature-only sessions are
+ *                                refused (fail closed); API-key sessions
+ *                                still get their requests signed on top.
  *
  * When neither key source is configured, everything degrades to plain
  * fetch and the UI behaves exactly as before (API-key auth only).
@@ -29,6 +38,7 @@
  *      `warn_for` and leaves everything else (initialize, tools/list,
  *      get_products, …) unsigned.
  */
+import { timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +58,29 @@ export function signingEnabled() {
     (process.env.ADCP_BUYER_PRIVATE_JWK_FILE || process.env.ADCP_BUYER_PRIVATE_JWK) &&
       process.env.ADCP_BUYER_KID,
   );
+}
+
+export function signingPasswordConfigured() {
+  return Boolean(process.env.ADCP_SIGNING_PASSWORD);
+}
+
+/**
+ * Signature-only sessions are offered to the browser only when BOTH the
+ * signing key and the gate password are configured — otherwise anyone who
+ * can reach the UI could sign as this buyer without any credential.
+ */
+export function signatureSessionsAvailable() {
+  return signingEnabled() && signingPasswordConfigured();
+}
+
+/** Constant-time check of the user-supplied signing password. */
+export function signingPasswordOk(provided) {
+  const expected = process.env.ADCP_SIGNING_PASSWORD;
+  if (!expected || typeof provided !== 'string' || provided.length === 0) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 function loadPrivateJwk() {
