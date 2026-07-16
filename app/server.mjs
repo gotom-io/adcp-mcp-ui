@@ -264,12 +264,13 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl) {
   const sessionId = cacheKey.split(cacheKeySeparator)[2];
   const xMcpSessionId = getMcpSessionIdShort(sessionId);
   const headers = {
-    // Signature-only mode sends NO x-adcp-auth — the seller must then
+    // Signature-only mode sends NO auth header — the seller must then
     // authenticate the RFC 9421 signature (or reject). Never send an empty
     // header; some verifiers treat it as a present-but-invalid credential.
-    ...(adcpAuth ? { 'x-adcp-auth': adcpAuth } : {}),
+    // The seller's /mcp endpoint is exempt from the proxy's basic auth, so
+    // the API key travels as a standard Bearer token.
+    ...(adcpAuth ? { 'Authorization': `Bearer ${ adcpAuth }` } : {}),
     'x-mcp-session-id': xMcpSessionId,
-    'Authorization': `Basic ${ Buffer.from(`${ process.env.BASIC_AUTH_USER }:${ process.env.BASIC_AUTH_PASS }`).toString('base64') }`
   };
   // RFC 9421 signing (opt-in via ADCP_BUYER_PRIVATE_JWK/ADCP_BUYER_KID):
   // learn which operations the seller requires signatures for, then route

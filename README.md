@@ -62,8 +62,7 @@ file passes these through to the container.
 | `HOST_UID` / `HOST_GID` | Your host user/group id so container-written files are owned by you. Get them with `id -u` / `id -g`. | Yes |
 | `OPENAI_API_KEY` | OpenAI key. | One of OpenAI/Anthropic |
 | `ANTHROPIC_API_KEY` | Anthropic key. | One of OpenAI/Anthropic |
-| `VALID_ADCP_AUTH_KEYS` | Comma-separated list of `x-adcp-auth` values the UI accepts / uses toward the seller (e.g. `1,2,3` in dev). | Yes |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | HTTP Basic credentials sent with every seller MCP request (fronts the goTom backend). | Yes |
+| `VALID_ADCP_AUTH_KEYS` | Comma-separated list of buyer API keys the UI accepts / sends to the seller as `Authorization: Bearer` (e.g. `1,2,3` in dev). | Yes |
 | `MCP_SERVER_CHOICES` | JSON array of seller endpoints shown in the UI dropdown. See below. | Yes |
 | `ADCP_BUYER_*` | RFC 9421 request signing. Leave unset to disable. | No (opt-in) |
 
@@ -80,10 +79,6 @@ None of these are in the repo (it's public) — here's the source for each:
   invent your own. Ask whoever operates the seller endpoint you're targeting
   (for goTom devs: the keys live in the seller's `app/config/instances/` config —
   ask the team for a dev key, or add yourself one if you run the seller locally).
-- **`BASIC_AUTH_USER` / `BASIC_AUTH_PASS`** — HTTP Basic credentials of the
-  nginx/SSL terminator fronting the seller. Ask the team; if you run the seller
-  locally without a Basic Auth proxy, any non-empty dummy values work (the header
-  is sent but nothing checks it).
 - **`MCP_SERVER_CHOICES`** — the seller endpoint URL(s). Either your locally
   running seller (its ngrok URL) or a shared dev endpoint from the team.
 - **`ADCP_BUYER_*` (signing)** — you generate this keypair yourself; see

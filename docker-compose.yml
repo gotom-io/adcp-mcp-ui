@@ -18,8 +18,6 @@ services:
             OPENAI_API_KEY: ${OPENAI_API_KEY:-}
             ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
             VALID_ADCP_AUTH_KEYS: ${VALID_ADCP_AUTH_KEYS:-}
-            BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
-            BASIC_AUTH_PASS: ${BASIC_AUTH_PASS:-}
             MCP_SERVER_CHOICES: ${MCP_SERVER_CHOICES:-}
             # RFC 9421 request signing (optional; signing is off when unset)
             ADCP_BUYER_PRIVATE_JWK_FILE: ${ADCP_BUYER_PRIVATE_JWK_FILE:-}
