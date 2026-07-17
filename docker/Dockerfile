@@ -3,6 +3,7 @@ FROM node:lts
 WORKDIR /app
 
 COPY app/ .
+COPY scripts/ /scripts/
 
 RUN npm ci
 
