@@ -210,7 +210,7 @@ If the user already has the ad tags when booking, a package may carry them inlin
     {
       "creative_id": "coffee_launch_300x250",
       "name": "Coffee launch 300x250",
-      "format_id": { "id": "1234_300_250" },
+      "format_id": { "agent_url": "https://seller.example/mcp", "id": "1234_300_250" },
       "assets": {
         "tag_300x250": { "asset_type": "html", "content": "<script src=\\"https://adserver.example/tag.js\\"></script>" }
       }
@@ -224,8 +224,9 @@ list_creative_formats — Which ad formats/sizes this seller accepts. No account
   "tool": "list_creative_formats",
   "params": {}
 }
-Returns { formats: [{ format_id: { id, width, height }, name, assets: [{ asset_id, asset_type, required }] }] }.
+Returns { formats: [{ format_id: { agent_url, id, width, height }, name, assets: [{ asset_id, asset_type, required }] }] }.
 The asset_id (for example tag_300x250) is the slot name you must use as the key in sync_creatives assets. Match the formats to the format_id values the booked products carry.
+When you send a format_id back in sync_creatives or create_media_buy, copy the whole object including agent_url — sending only the id is rejected as a validation error. (Rule 11 above is about what you display to the user, not about what you send.)
 
 sync_creatives — Deliver the ad tags for a booked campaign
 One creative per ad tag. assignments is what binds a tag to a package (flight) — this seller requires it, a creative without an assignment is rejected. Use the package_id values createMediaBuy returned.
@@ -238,7 +239,7 @@ One creative per ad tag. assignments is what binds a tag to a package (flight) �
       {
         "creative_id": "coffee_launch_300x250",
         "name": "Coffee launch 300x250",
-        "format_id": { "id": "1234_300_250" },
+        "format_id": { "agent_url": "https://seller.example/mcp", "id": "1234_300_250" },
         "assets": {
           "tag_300x250": { "asset_type": "html", "content": "<script src=\\"https://adserver.example/tag.js\\"></script>" }
         }
