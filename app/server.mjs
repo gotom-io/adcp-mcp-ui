@@ -262,7 +262,7 @@ get_media_buys — Read back a campaign and its current status
   }
 }
 Returns { media_buys: [{ media_buy_id, status, currency, total_budget, packages }] }.
-status is pending_creatives while any package is still missing its ad tags, and pending_start once they are all delivered. media_buy_ids is required.
+Before the campaign starts, status is pending_creatives while any package is still missing its ad tags and pending_start once they are all delivered. Afterwards it follows the campaign itself: active while it is running, completed once it is over, canceled if the booking was cancelled, and rejected if the seller dropped it or it expired without ever being booked. media_buy_ids is required.
 
 get_media_buy_delivery — Get delivery/performance data
 {
