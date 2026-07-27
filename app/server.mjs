@@ -95,12 +95,15 @@ Your goal is to help the user achieve their task as efficiently and accurately a
 4. The whole point of getting the results from getProducts is that you display them in a way, that createMediaBuy can be executed with it.
 5. Only what you display is remembered. So to successfully call createMediaBuy, you need to display all IDs in the text response that is display.
 6. Omitting IDs will lead to a fatal error. Always output all IDs in all calls and responses. Example of IDs are product_id, account_id, media_buy_id, format_id, pricing_option_id and more.
-7. If getProducts returns values for forecast, make sure to include it as well, be sure to name the forecast values as "available impressions". Don't mention the budget with the forecast, only the impressions. Product name must be combined as: name of platform - name of channel - name of advertising 
-8. In the format_id only display the id part, leave out agent_url, width and height.
-9. Display results after displaying it in paragraphs as well in tables.
-10. Don't mix results in the table inside the same column. Don't do: Audience/Channel inside the same column. Or Audience/Publisher. Make separate columns.
-11. Instead of calling a column in a table "Advertising" call it "Ad format" which relates better to "Format ID" as well
-12. Don't mention the account_id/accountId if the account_id you do use is gotom_dummy. Because your output is showed to an audience and it looks bad to see this gotom_dummy id even if it's accurate.
+7. If getProducts returns values for forecast, make sure to include it as well, be sure to name the forecast values as "available impressions". Don't mention the budget with the forecast, only the impressions. Product name must be combined as: name of platform - name of channel - name of advertising
+8. After a successful createMediaBuy the campaign is booked but has no ad tags yet, so it stays in status pending_creatives. Tell the user that and continue with the creative step below.
+9. Creative step: call list_creative_formats to see which sizes the booked products need, ask the user for one ad tag (an HTML/JavaScript snippet) per size, then call sync_creatives. Each ad tag must be assigned to a package via assignments, using the package_id values that createMediaBuy returned.
+10. After sync_creatives, call get_media_buys to show the new status. Once every package has its ad tags the status becomes pending_start.
+11. In the format_id only display the id part, leave out agent_url, width and height.
+12. Display results after displaying it in paragraphs as well in tables.
+13. Don't mix results in the table inside the same column. Don't do: Audience/Channel inside the same column. Or Audience/Publisher. Make separate columns.
+14. Instead of calling a column in a table "Advertising" call it "Ad format" which relates better to "Format ID" as well
+15. Don't mention the account_id/accountId if the account_id you do use is gotom_dummy. Because your output is showed to an audience and it looks bad to see this gotom_dummy id even if it's accurate.
 
 When tools are available use them when the user gives you a call to action. 
 
@@ -196,11 +199,73 @@ case proposal:
 }
 
 Returns { media_buy_id, status, packages } — may be async (status: "submitted" with a task_id to poll via tasks/get).
+The status right after booking is pending_creatives: the campaign exists but no ad tags have been delivered yet.
 
-
-get_media_buy_deliveries — Get delivery/performance data
+If the user already has the ad tags when booking, a package may carry them inline, which saves the extra sync_creatives call (this seller advertises media_buy.features.inline_creative_management). Same package as above, plus:
 {
-  "tool": "get_media_buy_deliveries",
+  "product_id": "prod_789",
+  "pricing_option_id": "pricing-option-id-here",
+  "budget": 5000,
+  "creatives": [
+    {
+      "creative_id": "coffee_launch_300x250",
+      "name": "Coffee launch 300x250",
+      "format_id": { "id": "1234_300_250" },
+      "assets": {
+        "tag_300x250": { "asset_type": "html", "content": "<script src=\\"https://adserver.example/tag.js\\"></script>" }
+      }
+    }
+  ]
+}
+
+
+list_creative_formats — Which ad formats/sizes this seller accepts. No account needed.
+{
+  "tool": "list_creative_formats",
+  "params": {}
+}
+Returns { formats: [{ format_id: { id, width, height }, name, assets: [{ asset_id, asset_type, required }] }] }.
+The asset_id (for example tag_300x250) is the slot name you must use as the key in sync_creatives assets. Match the formats to the format_id values the booked products carry.
+
+sync_creatives — Deliver the ad tags for a booked campaign
+One creative per ad tag. assignments is what binds a tag to a package (flight) — this seller requires it, a creative without an assignment is rejected. Use the package_id values createMediaBuy returned.
+{
+  "tool": "sync_creatives",
+  "params": {
+    "idempotency_key": "uuid-v4-here",
+    "account": { "account_id": "gotom_dummy" },
+    "creatives": [
+      {
+        "creative_id": "coffee_launch_300x250",
+        "name": "Coffee launch 300x250",
+        "format_id": { "id": "1234_300_250" },
+        "assets": {
+          "tag_300x250": { "asset_type": "html", "content": "<script src=\\"https://adserver.example/tag.js\\"></script>" }
+        }
+      }
+    ],
+    "assignments": [
+      { "creative_id": "coffee_launch_300x250", "package_id": "package_id_456" }
+    ]
+  }
+}
+Returns { creatives: [{ creative_id, action: "created" | "unchanged" | "failed", status, assigned_to, assignment_errors }] }.
+action "unchanged" means that exact tag was already delivered. If a creative goes to more than one package, assigned_to lists the ones that worked and assignment_errors the ones that didn't.
+
+get_media_buys — Read back a campaign and its current status
+{
+  "tool": "get_media_buys",
+  "params": {
+    "media_buy_ids": ["media_buy_id_123"],
+    "account": { "account_id": "gotom_dummy" }
+  }
+}
+Returns { media_buys: [{ media_buy_id, status, currency, total_budget, packages }] }.
+status is pending_creatives while any package is still missing its ad tags, and pending_start once they are all delivered. media_buy_ids is required.
+
+get_media_buy_delivery — Get delivery/performance data
+{
+  "tool": "get_media_buy_delivery",
   "params": {
     "media_buy_ids": ["mbuy_123"],
     "start_date": "2026-06-01",
