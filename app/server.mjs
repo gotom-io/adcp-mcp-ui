@@ -134,13 +134,14 @@ get_products — Discover available inventory
   "params": {
     "brief": "300x250 banner ads for coffee brands",
     "buying_mode": "brief",
-    "account": { "account_id": "gotom_dummy" }
+    "account": { "account_id": "gotom_dummy" },
+    "brand": { "domain": "adcp-ui.gotom.io" }
   }
 }
 Returns products with product_id, name, description, formats, pricing.
-Since domain is required, always use gotom.io as domain currently.
 
 create_media_buy — Reserve/activate a campaign. Keep in mind, try to only create one if you can. Instead of multiple. One create_media_buy with multiple packages.
+\`brand.domain\` is required here (on get_products it is optional, but send it there too). Always use \`adcp-ui.gotom.io\` unless the user explicitly names a different domain. The seller verifies the domain cryptographically — it must publish a /.well-known/brand.json listing our buying agent's signing key — so any other value is rejected. Never invent a domain from the advertiser's name in the brief.
 io_acceptance is mistakenly needed, so just fill in dummy values.
 Currency is CHF. \`total_budget\` you need to figure out, e.g. use the total calculated from the briefing. \`start_time\` and \`end_time\` are first start of the first package and last end of the last package.  
 Case no proposal
@@ -152,7 +153,7 @@ Case no proposal
       "account_id": "gotom_dummy"
     },
     "brand": {
-      "domain": "gotom.io"
+      "domain": "adcp-ui.gotom.io"
     },
     "start_time": "2026-10-01T00:00:00Z",
     "end_time": "2026-12-31T23:59:59Z",
@@ -187,7 +188,7 @@ case proposal:
       "account_id": "gotom_dummy"
     },
     "brand": {
-      "domain": "gotom.io"
+      "domain": "adcp-ui.gotom.io"
     },
   "proposal_id": "prop_abc123",
   "total_budget": {
@@ -210,7 +211,7 @@ If the user already has the ad tags when booking, a package may carry them inlin
     {
       "creative_id": "coffee_launch_300x250",
       "name": "Coffee launch 300x250",
-      "format_id": { "agent_url": "https://seller.example/mcp", "id": "1234_300_250" },
+      "format_id": { "agent_url": "https://dev-demo-mcp.gotom.io/mcp", "id": "1234_300_250" },
       "assets": {
         "tag_300x250": { "asset_type": "html", "content": "<script src=\\"https://adserver.example/tag.js\\"></script>" }
       }
@@ -226,7 +227,7 @@ list_creative_formats — Which ad formats/sizes this seller accepts. No account
 }
 Returns { formats: [{ format_id: { agent_url, id, width, height }, name, assets: [{ asset_id, asset_type, required }] }] }.
 The asset_id (for example tag_300x250) is the slot name you must use as the key in sync_creatives assets. Match the formats to the format_id values the booked products carry.
-When you send a format_id back in sync_creatives or create_media_buy, copy the whole object including agent_url — sending only the id is rejected as a validation error. (Rule 11 above is about what you display to the user, not about what you send.)
+A format_id is a namespaced reference: agent_url identifies the agent that DEFINES the format and id is only meaningful inside that namespace. goTom defines its own formats, so agent_url is the seller agent's own URL — the example above shows the Dev Demo seller. When you send a format_id back in sync_creatives or create_media_buy, copy the whole object exactly as list_creative_formats (or get_products) returned it, because agent_url differs per seller. Never send only the id, that is rejected as a validation error. (Rule 11 above is about what you display to the user, not about what you send.)
 
 sync_creatives — Deliver the ad tags for a booked campaign
 One creative per ad tag. assignments is what binds a tag to a package (flight) — this seller requires it, a creative without an assignment is rejected. Use the package_id values createMediaBuy returned.
@@ -239,7 +240,7 @@ One creative per ad tag. assignments is what binds a tag to a package (flight) �
       {
         "creative_id": "coffee_launch_300x250",
         "name": "Coffee launch 300x250",
-        "format_id": { "agent_url": "https://seller.example/mcp", "id": "1234_300_250" },
+        "format_id": { "agent_url": "https://dev-demo-mcp.gotom.io/mcp", "id": "1234_300_250" },
         "assets": {
           "tag_300x250": { "asset_type": "html", "content": "<script src=\\"https://adserver.example/tag.js\\"></script>" }
         }
