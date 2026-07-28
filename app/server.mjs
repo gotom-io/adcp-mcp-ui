@@ -436,7 +436,13 @@ async function getBody(req) {
   return await new Promise((resolve) => {
     let data = '';
     req.on('data', chunk => data += chunk);
-    req.on('end', () => resolve(JSON.parse(data)));
+    // Malformed JSON must not throw here: this rejection happens inside the
+    // stream's 'end' handler, so an exception is uncaught and kills the whole
+    // process — one bad request took the UI down mid-demo. Resolve null and
+    // let the route answer 400.
+    req.on('end', () => {
+      try { resolve(JSON.parse(data)); } catch { resolve(null); }
+    });
   });
 }
 
@@ -520,6 +526,12 @@ const server = createServer(async (req, res) => {
   // POST /api/settings - Save settings as HttpOnly cookies
   if (req.method === 'POST' && req.url === '/api/settings') {
     const body = await getBody(req);
+    if (body === null || typeof body !== 'object') {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      return;
+    }
 
     const cookiesToSet = [];
     if (body.adcp_auth !== undefined) {
@@ -635,6 +647,12 @@ const server = createServer(async (req, res) => {
     logger = getLogger(sessionId)
 
     const body = await getBody(req);
+    if (body === null || typeof body !== 'object' || (typeof body.prompt !== 'string' && !body.clearHistory)) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Invalid JSON body — expected { prompt } or { clearHistory }' }));
+      return;
+    }
 
     logger.debug({ body })
 
