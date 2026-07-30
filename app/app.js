@@ -114,9 +114,19 @@ createApp({
       }
     };
 
+    // The chat is a single long-lived page holding the whole conversation, so a
+    // link that navigates in place (the campaign confirmation page the seller
+    // returns, for one) would throw the session away. marked has no option for
+    // this, so wrap its own link renderer rather than reimplementing it — that
+    // keeps escaping and title handling wherever the CDN version puts them.
+    const newTabRenderer = new marked.Renderer();
+    const renderLink = newTabRenderer.link.bind(newTabRenderer);
+    newTabRenderer.link = (...args) =>
+      renderLink(...args).replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
+
     const renderMarkdown = (text) => {
       if (!text) return '';
-      return marked.parse(text);
+      return marked.parse(text, { renderer: newTabRenderer });
     };
 
     const handleKeydown = (event) => {
