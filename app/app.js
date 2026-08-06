@@ -88,7 +88,9 @@ createApp({
         if (settings.mcp_server && settings.mcp_server.trim()) {
           mcpServer.value = settings.mcp_server;
         }
-        if (settings.ai_model) {
+        // A cookie may still hold a retired non-Anthropic model (e.g. openai:*);
+        // ignore it so the select doesn't end up on a value it no longer offers.
+        if (settings.ai_model && settings.ai_model.startsWith('anthropic:')) {
           aiModel.value = settings.ai_model;
         }
         if (settings.signing_password) {

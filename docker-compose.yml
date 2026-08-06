@@ -15,7 +15,6 @@ services:
         networks:
             - adcpnetwork
         environment:
-            OPENAI_API_KEY: ${OPENAI_API_KEY:-}
             ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
             VALID_ADCP_AUTH_KEYS: ${VALID_ADCP_AUTH_KEYS:-}
             MCP_SERVER_CHOICES: ${MCP_SERVER_CHOICES:-}

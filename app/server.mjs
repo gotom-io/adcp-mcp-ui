@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stepCountIs, streamText } from 'ai';
-import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createMCPClient } from '@ai-sdk/mcp';
 import NodeCache from 'node-cache';
@@ -366,8 +365,6 @@ const getModel = (modelString) => {
   switch (provider) {
     case 'anthropic':
       return anthropic(modelName);
-    case 'openai':
-      return openai(modelName);
     default:
       return anthropic('claude-sonnet-5');
   }
