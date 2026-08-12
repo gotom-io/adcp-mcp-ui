@@ -192,8 +192,25 @@ Case no proposal
   }
 }
 
-case proposal (cannot carry inline creatives — see the case below):
+case proposal (cannot carry inline creatives — see the case below). Proposals from getProducts are DRAFTS (proposal_status "draft") and MUST be finalized before booking — a create_media_buy on a draft is rejected with PROPOSAL_NOT_COMMITTED. Two calls, in order:
+
+Step 1 — finalize the draft (a getProducts call in refine mode; no brief on this call):
 {
+  "tool": "get_products",
+  "params": {
+    "buying_mode": "refine",
+    "refine": [
+      { "scope": "proposal", "action": "finalize", "proposal_id": "prop_abc123" }
+    ],
+    "account": { "account_id": "gotom_dummy" }
+  }
+}
+The response echoes the proposal with proposal_status "committed" and an expires_at — the booking must happen before that deadline (72h), otherwise re-discover via a fresh brief. Finalize ONE proposal per call. Display the committed proposal_id and expires_at to the user.
+
+Step 2 — execute the committed proposal (total_budget is REQUIRED on this path):
+{
+  "tool": "create_media_buy",
+  "params": {
     "idempotency_key": "uuid-v4-here",
     "account": {
       "account_id": "gotom_dummy"
@@ -201,13 +218,14 @@ case proposal (cannot carry inline creatives — see the case below):
     "brand": {
       "domain": "adcp-ui.gotom.io"
     },
-  "proposal_id": "prop_abc123",
-  "total_budget": {
-    "amount": 10000,
-    "currency": "USD"
-  },
-  "start_time": "2026-02-01T00:00:00Z",
-  "end_time": "2026-02-28T23:59:59Z"
+    "proposal_id": "prop_abc123",
+    "total_budget": {
+      "amount": 10000,
+      "currency": "CHF"
+    },
+    "start_time": "2026-02-01T00:00:00Z",
+    "end_time": "2026-02-28T23:59:59Z"
+  }
 }
 
 Case one-call booking, packages WITH inline creatives (rule 8a) — the ad tags travel with the booking, so no sync_creatives call follows. This seller advertises media_buy.features.inline_creative_management and the packages[].creatives field is part of the create_media_buy tool schema you were given; read it there too. There is NO assignments array on this path: a creative belongs to the package it is nested in. Note this example uses packages, not proposal_id — inline creatives are impossible with proposal_id. This is a full call, copy its shape:
