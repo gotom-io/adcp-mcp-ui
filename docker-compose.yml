@@ -10,11 +10,12 @@ services:
         entrypoint: ["node", "server.mjs"]
         volumes:
             - ./app:/app
-        ports:
-            - '3851:3000'
-        networks:
-            - adcpnetwork
+        # Host networking so the seller is reachable as http://localhost:3007/mcp —
+        # its canonical MCP authority. The SDK's signature-authority pin rejects any
+        # other Host (e.g. the docker-network alias app:3007) with HTTP 400.
+        network_mode: host
         environment:
+            PORT: '3851'
             ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
             VALID_ADCP_AUTH_KEYS: ${VALID_ADCP_AUTH_KEYS:-}
             MCP_SERVER_CHOICES: ${MCP_SERVER_CHOICES:-}
@@ -27,9 +28,4 @@ services:
             ADCP_BUYER_AGENT_ID: ${ADCP_BUYER_AGENT_ID:-}
             # Gate for signature-only sessions — see .env.example
             ADCP_SIGNING_PASSWORD: ${ADCP_SIGNING_PASSWORD:-}
-
-networks:
-    adcpnetwork:
-        external: true
-        name: adcpnetwork
 
