@@ -709,14 +709,6 @@ select.input-field option {
   box-shadow: var(--shadow-md);
 }
 
-.input-tune-icon {
-  width: 20px;
-  height: 20px;
-  color: var(--text-02);
-  flex-shrink: 0;
-  align-self: center;
-}
-
 .chat-input {
   flex: 1;
   background: transparent;
