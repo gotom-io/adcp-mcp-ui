@@ -10,10 +10,13 @@ services:
         entrypoint: ["node", "server.mjs"]
         volumes:
             - ./app:/app
-        # Host networking so the seller is reachable as http://localhost:3007/mcp —
-        # its canonical MCP authority. The SDK's signature-authority pin rejects any
-        # other Host (e.g. the docker-network alias app:3007) with HTTP 400.
-        network_mode: host
+        # Joins the shared gotom network, where the local seller answers as
+        # http://seller-agent-local:3007/mcp (its ADCP_ALLOWED_HTTP_HOSTS alias, a valid
+        # signature authority) — use that URL in MCP_SERVER_CHOICES.
+        networks:
+            - gotom
+        ports:
+            - "3851:3851"
         environment:
             PORT: '3851'
             ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -29,3 +32,8 @@ services:
             # Gate for signature-only sessions — see .env.example
             ADCP_SIGNING_PASSWORD: ${ADCP_SIGNING_PASSWORD:-}
 
+
+networks:
+    gotom:
+        external: true
+        name: gotom
