@@ -3,6 +3,18 @@ set -euo pipefail
 
 REMOTE_HOST="gotom-adcp-mcp"
 
+# Multiplex every ssh call over ONE master connection so the U2F/YubiKey
+# touch happens only once per deploy. ControlPersist keeps the master alive
+# for 30m after the last call — deploying right after the seller (whose
+# deploy.sh uses the same ControlPath) reuses its master: no touch at all.
+ssh() {
+  command ssh \
+    -o ControlMaster=auto \
+    -o ControlPath="$HOME/.ssh/ctl-%r@%h-%p" \
+    -o ControlPersist=30m \
+    "$@"
+}
+
 docker compose build app
 
 echo Transfer "adcp-mcp-ui:latest" to "${REMOTE_HOST}" ...
