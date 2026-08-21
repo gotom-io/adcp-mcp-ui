@@ -824,6 +824,8 @@ const server = createServer(async (req, res) => {
     '/styles.css': { file: 'styles.css', contentType: 'text/css' },
     '/app.js': { file: 'app.js', contentType: 'application/javascript' },
     '/shared.mjs': { file: 'shared.mjs', contentType: 'application/javascript' },
+    '/robot.svg': { file: 'robot.svg', contentType: 'image/svg+xml' },
+    '/gotom-logo.svg': { file: 'gotom-logo.svg', contentType: 'image/svg+xml' },
   };
 
   // Strip query string for static file matching

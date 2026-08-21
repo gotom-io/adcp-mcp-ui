@@ -22,207 +22,219 @@
   <meta name='theme-color' content='#00a882'>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=2">
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css?v=3">
 </head>
 <body>
   <div id="app">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-logo">
-          <svg viewBox="0 0 32 32" fill="#00A882" xmlns="http://www.w3.org/2000/svg">
-            <path d="M32 0H0V13.7143H32V0Z"/>
-            <path d="M13.7143 18.2857H0V32H13.7143V18.2857Z"/>
-            <path d="M32 18.2857H18.2857V32H32V18.2857Z"/>
+    <!-- Top Bar (goTom brand, mirrors the Tom AI header) -->
+    <header class="topbar">
+      <a class="topbar-logo" href="/" aria-label="goTom">
+        <img src="/gotom-logo.svg" alt="goTom">
+      </a>
+    </header>
+
+    <div class="layout">
+      <!-- Sidebar -->
+      <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+        <div class="sidebar-header">
+          <svg class="sparkle-icon" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2l1.9 5.7a2 2 0 0 0 1.27 1.26L20.8 10.9a.55.55 0 0 1 0 1.04l-5.63 1.94a2 2 0 0 0-1.26 1.26L12 20.84a.55.55 0 0 1-1.04 0l-1.9-5.7a2 2 0 0 0-1.27-1.26L2.16 11.94a.55.55 0 0 1 0-1.04l5.63-1.94a2 2 0 0 0 1.26-1.26L11 2a.55.55 0 0 1 1 0z"/>
+            <path d="M19.5 1.5l.7 2.1a1 1 0 0 0 .63.63l2.1.7a.28.28 0 0 1 0 .52l-2.1.7a1 1 0 0 0-.63.63l-.7 2.1a.28.28 0 0 1-.52 0l-.7-2.1a1 1 0 0 0-.63-.63l-2.1-.7a.28.28 0 0 1 0-.52l2.1-.7a1 1 0 0 0 .63-.63l.7-2.1a.28.28 0 0 1 .52 0z"/>
           </svg>
-        </div>
-        <div class="brand-text">
-          <span class="brand-name">goTom</span>
-          <span class="brand-subtitle">Sales Agent</span>
-        </div>
-      </div>
-      
-      <div class="config-section">
-        <div class="config-section-title">Configuration</div>
-        
-        <div class="config-group">
-          <label for="server">MCP Server</label>
-          <select id="server" class="input-field" v-model="mcpServer" @change="saveServerCookie">
-            <option
-                v-for="server in serverChoices"
-                :key="server.url"
-                :value="server.url"
-            >
-              {{ server.label }}
-            </option>
-          </select>
+          <span class="sidebar-title">Sales Agent</span>
         </div>
 
-        <div class="config-group">
-          <label for="model">AI Model</label>
-          <select id="model" class="input-field" v-model="aiModel" @change="saveModelCookie">
-            <option value="anthropic:claude-sonnet-5">Claude Sonnet 5</option>
-            <option value="anthropic:claude-opus-5">Claude Opus 5</option>
-            <option value="anthropic:claude-opus-4-8">Claude Opus 4.8</option>
-          </select>
-        </div>
+        <div class="sidebar-body">
+          <div class="config-section">
+            <div class="config-section-title">Configuration</div>
 
-        <div class="config-group">
-          <label for="auth">API Key</label>
-          <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" :placeholder="signingEnabled ? 'Empty = signed requests (RFC 9421)' : 'Enter your API key...'">
-        </div>
-
-        <!-- Signature-only sessions are gated by a shared password: the
-             signing key belongs to the SERVER, so without this gate anyone
-             reaching a public deployment could sign as the buyer. -->
-        <div class="config-group" v-if="signingEnabled">
-          <label for="signing-password">Signing Password</label>
-          <input type="password" id="signing-password" class="input-field" v-model="signingPassword" @input="saveSigningPasswordCookie" placeholder="Required when API key is empty">
-        </div>
-      </div>
-      
-      <div class="sidebar-footer">
-        <button class="clear-btn" @click="clearHistory" :disabled="loading">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="1 4 1 10 7 10"></polyline>
-            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-          </svg>
-          Clear Context History
-        </button>
-        <!-- NEW: Get Logs Button -->
-        <button class="clear-btn logs-btn" @click="showLogs = true">
-          Get Logs
-        </button>
-        <div class="session-id">Session ID: {{ mcpSessionId }}</div>
-      </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-area">
-      <div class="progress-bar" :class="{ loading: loading }">
-        <div class="progress"></div>
-      </div>
-      <div v-if="showLogs" class="logs-panel">
-        <div class="logs-actions">
-          <div class="logs-actions-header">
-            <div class="logs-title">Logs</div>
-
-            <button class="logs-close" @click="closeLogs">
-              ✕
-            </button>
-          </div>
-          <div class="logs-meta">Your short MCP session ID: <span class="log-keyword">{{ mcpSessionId }}</span></div>
-          <!-- backend search -->
-          <div class="logs-control-group">
-            <div class="log-filter-input-info">
-              Search (regex) logs on server, leave empty for most recent
+            <div class="config-group">
+              <label for="server">MCP Server</label>
+              <select id="server" class="input-field" v-model="mcpServer" @change="saveServerCookie">
+                <option
+                    v-for="server in serverChoices"
+                    :key="server.url"
+                    :value="server.url"
+                >
+                  {{ server.label }}
+                </option>
+              </select>
             </div>
-            <input
-                v-model="logSearchQuery"
-                class="log-filter-input"
-                placeholder="Search logs on server"
-                @keydown.enter="searchLogs"
-            >
-            <button
-                class="logs-action-btn"
-                @click="searchLogs"
-                :disabled="loading"
-            >
-              Search Logs
-            </button>
-          </div>
-          <!-- filter input -->
-          <input
-              v-model="logFilter"
-              class="log-filter-input"
-              placeholder="Filter logs locally..."
-          >
-        </div>
-        <pre class="logs-output" v-html="highlightedLogs"></pre>
-      </div>
 
-      <div class="chat-container" ref="chatContainer">
-        <!-- Welcome Screen -->
-        <div class="welcome-screen" v-if="messages.length === 0">
-          <div class="welcome-icon">
-            <svg viewBox="0 0 32 32" fill="#00A882" xmlns="http://www.w3.org/2000/svg">
-              <path d="M32 0H0V13.7143H32V0Z"/>
-              <path d="M13.7143 18.2857H0V32H13.7143V18.2857Z"/>
-              <path d="M32 18.2857H18.2857V32H32V18.2857Z"/>
-            </svg>
-          </div>
-          <h1 class="welcome-title">goTom Sales Agent</h1>
-          <p class="welcome-subtitle">
-            Your AI-powered interface for managing advertising campaigns and data operations.
-          </p>
-          <div class="welcome-hint">
-            Press <code>Enter</code> to send, <code>Shift+Enter</code> for new line
-          </div>
-        </div>
-
-        <!-- Chat Messages -->
-        <div class="message" v-for="(msg, index) in messages" :key="index" :class="msg.role">
-          <!-- User message -->
-          <div class="message-content" v-if="msg.role === 'user'">{{ msg.content }}</div>
-          <!-- Warning message (context truncated) -->
-          <div class="message-content warning-message" v-else-if="msg.role === 'warning'">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-              <line x1="12" y1="9" x2="12" y2="13"></line>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            <span>{{ msg.content }}</span>
-          </div>
-          <!-- Assistant message -->
-          <div class="message-content markdown-body" v-else>
-            <div v-if="msg.content" v-html="renderMarkdown(msg.content)"></div>
-          </div>
-        </div>
-
-        <!-- Thinking Indicator -->
-        <div class="thinking-indicator-wrapper" v-if="loading">
-          <div class="loading-indicator">
-            <div class="loading-dots">
-              <span></span>
-              <span></span>
-              <span></span>
+            <div class="config-group">
+              <label for="model">AI Model</label>
+              <select id="model" class="input-field" v-model="aiModel" @change="saveModelCookie">
+                <option value="anthropic:claude-sonnet-5">Claude Sonnet 5</option>
+                <option value="anthropic:claude-opus-5">Claude Opus 5</option>
+                <option value="anthropic:claude-opus-4-8">Claude Opus 4.8</option>
+              </select>
             </div>
-            <span>Thinking...</span>
+
+            <div class="config-group">
+              <label for="auth">API Key</label>
+              <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" :placeholder="signingEnabled ? 'Empty = signed requests (RFC 9421)' : 'Enter your API key...'">
+            </div>
+
+            <!-- Signature-only sessions are gated by a shared password: the
+                 signing key belongs to the SERVER, so without this gate anyone
+                 reaching a public deployment could sign as the buyer. -->
+            <div class="config-group" v-if="signingEnabled">
+              <label for="signing-password">Signing Password</label>
+              <input type="password" id="signing-password" class="input-field" v-model="signingPassword" @input="saveSigningPasswordCookie" placeholder="Required when API key is empty">
+            </div>
           </div>
         </div>
 
-        <!-- Error Toast -->
-        <div class="error-toast" v-if="error">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          <span>{{ error }}</span>
+        <div class="sidebar-footer">
+          <!-- "New chat" clears the context history (GOT-12664) -->
+          <button class="new-chat-btn" @click="clearHistory" :disabled="loading">
+            New chat
+          </button>
+          <div class="sidebar-meta">
+            <button class="logs-link" @click="showLogs = true">Get Logs</button>
+            <div class="session-id">Session ID: {{ mcpSessionId }}</div>
+          </div>
         </div>
-      </div>
 
-      <!-- Input Area -->
-      <div class="input-wrapper">
-        <div class="input-box">
-          <textarea 
-            class="chat-input" 
-            v-model="promptInput" 
-            @keydown="handleKeydown"
-            rows="1" 
-            placeholder="Ask me anything about your campaigns..."
-            ref="inputArea"
-            @input="adjustTextareaHeight"
-          ></textarea>
-          <!-- An empty API key is allowed only for signature-only sessions
-               (server-side RFC 9421 signing) WITH the signing password. -->
-          <button class="send-btn" @click="submit" :disabled="loading || !promptInput || (!authToken && !(signingEnabled && signingPassword))">
-            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        <div class="sidebar-collapse">
+          <button class="collapse-btn" @click="sidebarCollapsed = !sidebarCollapsed" :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :style="sidebarCollapsed ? 'transform: rotate(180deg)' : ''">
+              <polyline points="11 17 6 12 11 7"></polyline>
+              <polyline points="18 17 13 12 18 7"></polyline>
+            </svg>
           </button>
         </div>
-      </div>
-    </main>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-area" :class="{ 'is-empty': messages.length === 0 && !showLogs }">
+        <div class="progress-bar" :class="{ loading: loading }">
+          <div class="progress"></div>
+        </div>
+        <div v-if="showLogs" class="logs-panel">
+          <div class="logs-actions">
+            <div class="logs-actions-header">
+              <div class="logs-title">Logs</div>
+
+              <button class="logs-close" @click="closeLogs">
+                ✕
+              </button>
+            </div>
+            <div class="logs-meta">Your short MCP session ID: <span class="log-keyword">{{ mcpSessionId }}</span></div>
+            <!-- backend search -->
+            <div class="logs-control-group">
+              <div class="log-filter-input-info">
+                Search (regex) logs on server, leave empty for most recent
+              </div>
+              <input
+                  v-model="logSearchQuery"
+                  class="log-filter-input"
+                  placeholder="Search logs on server"
+                  @keydown.enter="searchLogs"
+              >
+              <button
+                  class="logs-action-btn"
+                  @click="searchLogs"
+                  :disabled="loading"
+              >
+                Search Logs
+              </button>
+            </div>
+            <!-- filter input -->
+            <input
+                v-model="logFilter"
+                class="log-filter-input"
+                placeholder="Filter logs locally..."
+            >
+          </div>
+          <pre class="logs-output" v-html="highlightedLogs"></pre>
+        </div>
+
+        <div class="chat-container" ref="chatContainer">
+          <!-- Welcome Screen -->
+          <div class="welcome-screen" v-if="messages.length === 0">
+            <img class="welcome-illustration" src="/robot.svg" alt="" aria-hidden="true">
+            <h1 class="welcome-title">
+              Your AI-powered interface for managing advertising campaigns and data operations.
+            </h1>
+          </div>
+
+          <!-- Chat Messages -->
+          <div class="message" v-for="(msg, index) in messages" :key="index" :class="msg.role">
+            <!-- User message -->
+            <div class="message-content" v-if="msg.role === 'user'">{{ msg.content }}</div>
+            <!-- Warning message (context truncated) -->
+            <div class="message-content warning-message" v-else-if="msg.role === 'warning'">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              <span>{{ msg.content }}</span>
+            </div>
+            <!-- Assistant message -->
+            <div class="message-content markdown-body" v-else>
+              <div v-if="msg.content" v-html="renderMarkdown(msg.content)"></div>
+            </div>
+          </div>
+
+          <!-- Thinking Indicator -->
+          <div class="thinking-indicator-wrapper" v-if="loading">
+            <div class="loading-indicator">
+              <div class="loading-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <span>Thinking...</span>
+            </div>
+          </div>
+
+          <!-- Error Toast -->
+          <div class="error-toast" v-if="error">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{{ error }}</span>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-wrapper">
+          <div class="input-box">
+            <svg class="input-tune-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <line x1="4" y1="7" x2="20" y2="7"></line>
+              <circle cx="9" cy="7" r="2.2" fill="var(--base-white)"></circle>
+              <line x1="4" y1="17" x2="20" y2="17"></line>
+              <circle cx="15" cy="17" r="2.2" fill="var(--base-white)"></circle>
+            </svg>
+            <textarea
+              class="chat-input"
+              v-model="promptInput"
+              @keydown="handleKeydown"
+              rows="1"
+              placeholder="Ask me anything about your campaigns..."
+              ref="inputArea"
+              @input="adjustTextareaHeight"
+            ></textarea>
+            <!-- An empty API key is allowed only for signature-only sessions
+                 (server-side RFC 9421 signing) WITH the signing password. -->
+            <button class="send-btn" @click="submit" :disabled="loading || !promptInput || (!authToken && !(signingEnabled && signingPassword))">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
+            </button>
+          </div>
+          <div class="input-hint" v-if="messages.length === 0">
+            Press <code>Enter</code> to send, <code>Shift+Enter</code> for a new line
+          </div>
+        </div>
+      </main>
+    </div>
   </div>
 
   <script type="text/javascript">

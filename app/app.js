@@ -20,6 +20,7 @@ createApp({
     const signingEnabled = ref(window.chat_config?.signingEnabled === true);
     console.log("window.chat_config", window.chat_config);
     const showLogs = ref(false);
+    const sidebarCollapsed = ref(false);
     const logs = ref('');
     const logFilter = ref('');
     const sessionId = crypto.randomUUID();
@@ -312,6 +313,7 @@ createApp({
       logSearchQuery,
       searchLogs,
       mcpSessionId,
+      sidebarCollapsed,
     };
   }
 }).mount('#app');
