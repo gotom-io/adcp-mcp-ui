@@ -13,8 +13,11 @@ createApp({
     const loading = ref(false);
     const chatContainer = ref(null);
     const inputArea = ref(null);
-    const serverChoices = ref(window.chat_config.serverChoices);
-    const mcpServer = ref(serverChoices.value[0].url);
+    // The backend withholds the server list until the credentials resolve
+    // (GOT-12664), so this can legitimately be empty.
+    const serverChoices = ref(window.chat_config.serverChoices ?? []);
+    const mcpServer = ref(serverChoices.value[0]?.url ?? '');
+    const authenticated = ref(window.chat_config?.authenticated === true);
     // Server-injected: true when the backend holds an RFC 9421 signing key —
     // an empty API-key field then means "signature-only session".
     const signingEnabled = ref(window.chat_config?.signingEnabled === true);
@@ -84,9 +87,10 @@ createApp({
     const applyProfile = (profile) => {
       customerMode.value = profile.customerMode === true;
       signingEnabled.value = profile.signingEnabled === true;
-      serverChoices.value = profile.serverChoices;
+      authenticated.value = profile.authenticated === true;
+      serverChoices.value = profile.serverChoices ?? [];
       if (!serverChoices.value.some(server => server.url === mcpServer.value)) {
-        mcpServer.value = serverChoices.value[0].url;
+        mcpServer.value = serverChoices.value[0]?.url ?? '';
       }
       if (customerMode.value && profile.aiModel) {
         aiModel.value = profile.aiModel;
@@ -109,7 +113,12 @@ createApp({
     };
     const saveServerCookie = () => saveSetting('mcp_server', mcpServer.value);
     const saveModelCookie = () => saveSetting('ai_model', aiModel.value);
-    const saveSigningPasswordCookie = () => saveSetting('signing_password', signingPassword.value);
+    const saveSigningPasswordCookie = async () => {
+      // A valid signing password resolves a signature-only session, which is
+      // what makes the server list available — refresh once the cookie landed.
+      await saveSetting('signing_password', signingPassword.value);
+      await refreshProfile();
+    };
 
     // Load settings from server on mount
     onMounted(async () => {
@@ -248,6 +257,10 @@ createApp({
       // An empty API key is only valid when the server signs requests
       // (RFC 9421 signature-only session) AND the user presents the signing
       // password — the signing key must not be usable anonymously.
+      if (!mcpServer.value) {
+        error.value = 'No environment available yet — enter a valid API key in the sidebar.';
+        return;
+      }
       if (!authToken.value && !(signingEnabled.value && signingPassword.value)) {
         error.value = signingEnabled.value
           ? 'Enter an API key OR the signing password in the sidebar before sending a message.'
@@ -326,6 +339,7 @@ createApp({
       signingPassword,
       signingEnabled,
       customerMode,
+      authenticated,
       mcpServer,
       aiModel,
       promptInput,

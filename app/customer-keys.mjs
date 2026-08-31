@@ -70,3 +70,33 @@ export function findCustomerProfile(customerKeys, adcpAuth) {
 export function customerServerAllowed(profile, mcpServerUrl) {
   return profile.servers.some(server => server.url === mcpServerUrl);
 }
+
+/**
+ * What the presented credentials are allowed to see. Pure on purpose: this is
+ * the gate in front of the MCP server list, so it is unit-tested rather than
+ * only exercised through the HTTP layer.
+ *
+ * - `customer`  — a key from ADCP_CUSTOMER_KEYS; sees only its own servers.
+ * - `internal`  — a key from VALID_ADCP_AUTH_KEYS, or a valid signature-only
+ *                 session (empty key + correct signing password); sees all
+ *                 servers this deployment knows.
+ * - `anonymous` — no key, an unknown key, or a wrong signing password. Sees
+ *                 NOTHING: the environments must not leak to an unresolved
+ *                 credential, so the caller returns an empty server list.
+ */
+export function resolveAccess({ customerKeys, validKeys, adcpAuth, signaturePasswordOk = false }) {
+  const profile = findCustomerProfile(customerKeys, adcpAuth);
+  if (profile) return { mode: 'customer', profile };
+
+  if (adcpAuth) {
+    // A presented key must resolve on its own; the signing password is not a
+    // rescue for a typo'd or foreign key.
+    return validKeys.includes(adcpAuth)
+      ? { mode: 'internal', profile: null }
+      : { mode: 'anonymous', profile: null };
+  }
+
+  return signaturePasswordOk
+    ? { mode: 'internal', profile: null }
+    : { mode: 'anonymous', profile: null };
+}

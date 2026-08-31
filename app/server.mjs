@@ -10,7 +10,7 @@ import fs from "fs"
 import path from 'node:path';
 import * as util from "node:util";
 import { getMcpSessionIdShort } from "./shared.mjs";
-import { customerServerAllowed, findCustomerProfile, parseCustomerKeys } from './customer-keys.mjs';
+import { customerServerAllowed, findCustomerProfile, parseCustomerKeys, resolveAccess } from './customer-keys.mjs';
 import { SignedHttpTransport } from './signed-http-transport.mjs';
 import { buyerPublicOrigin, createBuyerSignedFetch, primeSellerCapability, publicJwkFromPrivate, signatureSessionsAvailable, signingEnabled, signingPasswordConfigured, signingPasswordOk } from './signing.mjs';
 
@@ -523,33 +523,45 @@ function getHeaderInfo(req, res) {
   return { adcpAuth, mcpServerUrl, aiModel, sessionId, customerProfile };
 }
 
-/**
- * The config the frontend runs on, derived from the presented API key.
- * Injected into `/` at render time (from the auth cookie) and served live via
- * GET /api/profile so the sidebar can react when a key is typed in. A customer
- * key narrows the server choices to its own environments, pins the model and
- * switches the lockdown UI on (no signing password, no logs, no session id).
- */
-function buildChatConfig(adcpAuth) {
-  const chatConfig = {};
-  const customerProfile = findCustomerProfile(customerKeys, adcpAuth);
-
-  if (customerProfile) {
-    chatConfig.customerMode = true;
-    chatConfig.serverChoices = customerProfile.servers;
-    chatConfig.aiModel = customerProfile.model;
-    chatConfig.signingEnabled = false;
-    return chatConfig;
-  }
-
-  chatConfig.customerMode = false;
+/** Every MCP server this deployment knows — internal callers only. */
+function internalServerChoices() {
   if (process.env.MCP_SERVER_CHOICES) {
-    chatConfig.serverChoices = JSON.parse(process.env.MCP_SERVER_CHOICES || "[]");
+    const parsed = JSON.parse(process.env.MCP_SERVER_CHOICES || "[]");
+    if (parsed.length) return parsed;
   }
-  if (!chatConfig.serverChoices) {
-    chatConfig.serverChoices = [
-      { url: "https://dev-demo-mcp.gotom.io/mcp", label: "Dev Demo" },
-    ];
+  return [
+    { url: "https://dev-demo-mcp.gotom.io/mcp", label: "Dev Demo" },
+  ];
+}
+
+/**
+ * The config the frontend runs on, derived from the presented credentials.
+ * Injected into `/` at render time (from the cookies) and served live via
+ * GET /api/profile so the sidebar can react when a key is typed in.
+ *
+ * The server list is WITHHELD unless the credentials resolve (GOT-12664):
+ * an unknown key, no key, or a wrong signing password gets an empty list.
+ * This is a backend gate, not a UI one — hiding the environments in the
+ * sidebar would protect nothing, since anyone can read this response
+ * directly. A customer key sees only its own servers, with the model pinned
+ * and the lockdown UI on (no signing password, no logs, no session id).
+ */
+function buildChatConfig(adcpAuth, signingPassword) {
+  const access = resolveAccess({
+    customerKeys,
+    validKeys: validAdcpAuths,
+    adcpAuth,
+    signaturePasswordOk: signatureSessionsAvailable() && signingPasswordOk(signingPassword),
+  });
+
+  if (access.mode === 'customer') {
+    return {
+      authenticated: true,
+      customerMode: true,
+      serverChoices: access.profile.servers,
+      aiModel: access.profile.model,
+      signingEnabled: false,
+    };
   }
 
   // Tell the frontend whether RFC 9421 signing is configured: with a
@@ -558,8 +570,18 @@ function buildChatConfig(adcpAuth) {
   // Signature-only sessions are only offered when the gate password is
   // configured too — a signing key without the password stays API-key-only
   // from the browser's point of view (fail closed on a public UI).
-  chatConfig.signingEnabled = signatureSessionsAvailable();
-  return chatConfig;
+  const signingEnabled = signatureSessionsAvailable();
+
+  if (access.mode === 'anonymous') {
+    return { authenticated: false, customerMode: false, serverChoices: [], signingEnabled };
+  }
+
+  return {
+    authenticated: true,
+    customerMode: false,
+    serverChoices: internalServerChoices(),
+    signingEnabled,
+  };
 }
 
 async function getBody(req) {
@@ -689,7 +711,7 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/api/profile') {
     const cookies = parseCookies(req);
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(buildChatConfig(cookies.adcp_auth || '')));
+    res.end(JSON.stringify(buildChatConfig(cookies.adcp_auth || '', cookies.signing_password || '')));
     return;
   }
 
@@ -697,7 +719,8 @@ const server = createServer(async (req, res) => {
     const template = fs.readFileSync("./index.template.html", "utf8")
     // A returning customer's key is already in the cookie, so the first paint
     // is already locked down — no flash of the internal sidebar.
-    const chatConfig = buildChatConfig(parseCookies(req).adcp_auth || '');
+    const cookies = parseCookies(req);
+    const chatConfig = buildChatConfig(cookies.adcp_auth || '', cookies.signing_password || '');
 
     const html = template
         .replaceAll("{{ WINDOW_CHAT_CONFIG }}", JSON.stringify(chatConfig, ' ', 2))

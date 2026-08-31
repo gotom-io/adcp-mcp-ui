@@ -5,6 +5,7 @@ import {
   customerServerAllowed,
   findCustomerProfile,
   parseCustomerKeys,
+  resolveAccess,
 } from './customer-keys.mjs';
 
 const VALID_ENTRY = {
@@ -84,5 +85,45 @@ describe('customerServerAllowed', () => {
     assert.equal(customerServerAllowed(profile, 'https://test-20min-mcp.gotom.io/mcp'), true);
     assert.equal(customerServerAllowed(profile, 'https://dev-demo-mcp.gotom.io/mcp'), false);
     assert.equal(customerServerAllowed(profile, ''), false);
+  });
+});
+
+describe('resolveAccess', () => {
+  const customerKeys = parseCustomerKeys(JSON.stringify([VALID_ENTRY]));
+  const validKeys = ['internal-key', 'other-internal-key'];
+  const resolve = (over = {}) => resolveAccess({ customerKeys, validKeys, ...over });
+
+  it('gives a customer key its own profile', () => {
+    const access = resolve({ adcpAuth: 'key-20min' });
+    assert.equal(access.mode, 'customer');
+    assert.equal(access.profile.label, '20 Minuten');
+  });
+
+  it('gives a listed internal key the internal mode', () => {
+    assert.equal(resolve({ adcpAuth: 'internal-key' }).mode, 'internal');
+  });
+
+  // The point of the gate: an unresolved credential must not reach the server
+  // list at all, so the caller has nothing to return.
+  it('treats an unknown key as anonymous', () => {
+    assert.equal(resolve({ adcpAuth: 'guessed-key' }).mode, 'anonymous');
+    assert.equal(resolve({ adcpAuth: 'guessed-key' }).profile, null);
+  });
+
+  it('treats no key at all as anonymous', () => {
+    assert.equal(resolve({ adcpAuth: '' }).mode, 'anonymous');
+    assert.equal(resolve({ adcpAuth: undefined }).mode, 'anonymous');
+  });
+
+  it('lets a valid signature-only session in (empty key + password ok)', () => {
+    assert.equal(resolve({ adcpAuth: '', signaturePasswordOk: true }).mode, 'internal');
+  });
+
+  it('does not let the signing password rescue a wrong key', () => {
+    assert.equal(resolve({ adcpAuth: 'guessed-key', signaturePasswordOk: true }).mode, 'anonymous');
+  });
+
+  it('keeps customer mode even when the signing password is present', () => {
+    assert.equal(resolve({ adcpAuth: 'key-20min', signaturePasswordOk: true }).mode, 'customer');
   });
 });
