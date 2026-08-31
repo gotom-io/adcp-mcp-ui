@@ -18,6 +18,13 @@ createApp({
     // Server-injected: true when the backend holds an RFC 9421 signing key —
     // an empty API-key field then means "signature-only session".
     const signingEnabled = ref(window.chat_config?.signingEnabled === true);
+    // Customer mode (GOT-12664): a customer API key locks the sidebar down —
+    // only the key's own environments, a pinned model, no signing password,
+    // no logs, no session id. The server enforces all of it independently.
+    const customerMode = ref(window.chat_config?.customerMode === true);
+    if (customerMode.value && window.chat_config.aiModel) {
+      aiModel.value = window.chat_config.aiModel;
+    }
     console.log("window.chat_config", window.chat_config);
     const showLogs = ref(false);
     const sidebarCollapsed = ref(false);
@@ -72,7 +79,34 @@ createApp({
       }
     };
 
-    const saveCookie = () => saveSetting('adcp_auth', authToken.value);
+    // Re-read the chat config for the current key: switches customer mode on
+    // and off live while the key is being typed/pasted.
+    const applyProfile = (profile) => {
+      customerMode.value = profile.customerMode === true;
+      signingEnabled.value = profile.signingEnabled === true;
+      serverChoices.value = profile.serverChoices;
+      if (!serverChoices.value.some(server => server.url === mcpServer.value)) {
+        mcpServer.value = serverChoices.value[0].url;
+      }
+      if (customerMode.value && profile.aiModel) {
+        aiModel.value = profile.aiModel;
+      }
+    };
+
+    const refreshProfile = async () => {
+      try {
+        const res = await fetch('/api/profile');
+        applyProfile(await res.json());
+      } catch (err) {
+        console.error('Failed to load profile:', err);
+      }
+    };
+
+    const saveCookie = async () => {
+      // The profile depends on the key, so refresh only after the cookie landed.
+      await saveSetting('adcp_auth', authToken.value);
+      await refreshProfile();
+    };
     const saveServerCookie = () => saveSetting('mcp_server', mcpServer.value);
     const saveModelCookie = () => saveSetting('ai_model', aiModel.value);
     const saveSigningPasswordCookie = () => saveSetting('signing_password', signingPassword.value);
@@ -85,13 +119,16 @@ createApp({
         if (settings.adcp_auth) {
           authToken.value = settings.adcp_auth;
         }
-        // Only override mcpServer if a valid saved value exists
-        if (settings.mcp_server && settings.mcp_server.trim()) {
+        // Only override mcpServer if a valid saved value exists — and never
+        // with a server the current (customer) choices don't offer.
+        if (settings.mcp_server && settings.mcp_server.trim()
+            && serverChoices.value.some(server => server.url === settings.mcp_server)) {
           mcpServer.value = settings.mcp_server;
         }
         // A cookie may still hold a retired non-Anthropic model (e.g. openai:*);
         // ignore it so the select doesn't end up on a value it no longer offers.
-        if (settings.ai_model && settings.ai_model.startsWith('anthropic:')) {
+        // In customer mode the model is pinned server-side — the cookie loses.
+        if (!customerMode.value && settings.ai_model && settings.ai_model.startsWith('anthropic:')) {
           aiModel.value = settings.ai_model;
         }
         if (settings.signing_password) {
@@ -211,8 +248,8 @@ createApp({
       // An empty API key is only valid when the server signs requests
       // (RFC 9421 signature-only session) AND the user presents the signing
       // password — the signing key must not be usable anonymously.
-      if (!authToken.value && !(window.chat_config?.signingEnabled && signingPassword.value)) {
-        error.value = window.chat_config?.signingEnabled
+      if (!authToken.value && !(signingEnabled.value && signingPassword.value)) {
+        error.value = signingEnabled.value
           ? 'Enter an API key OR the signing password in the sidebar before sending a message.'
           : 'Please enter an API key in the sidebar before sending a message.';
         return;
@@ -288,6 +325,7 @@ createApp({
       authToken,
       signingPassword,
       signingEnabled,
+      customerMode,
       mcpServer,
       aiModel,
       promptInput,

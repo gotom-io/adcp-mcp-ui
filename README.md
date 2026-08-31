@@ -64,6 +64,7 @@ file passes these through to the container.
 | `ANTHROPIC_API_KEY` | Anthropic key. | One of OpenAI/Anthropic |
 | `VALID_ADCP_AUTH_KEYS` | Comma-separated list of buyer API keys the UI accepts / sends to the seller as `Authorization: Bearer` (e.g. `1,2,3` in dev). | Yes |
 | `MCP_SERVER_CHOICES` | JSON array of seller endpoints shown in the UI dropdown. See below. | Yes |
+| `ADCP_CUSTOMER_KEYS` | Customer API keys that lock the UI to their own environments (customer mode). See below. | No (opt-in) |
 | `ADCP_BUYER_*` | RFC 9421 request signing. Leave unset to disable. | No (opt-in) |
 
 ### Where to get each value
@@ -94,6 +95,39 @@ MCP_SERVER_CHOICES=[{"url": "https://your-ngrok-or-local-seller", "label": "Loca
 ```
 
 If you're running the seller (`sdk-adcp-seller`) locally, put its ngrok URL here.
+
+### `ADCP_CUSTOMER_KEYS` — customer mode (GOT-12664)
+
+Early-access customers use the same deployment but must not reach foreign
+instances. A key listed here switches the UI into **customer mode** as soon as
+it is entered: the MCP server dropdown only offers that key's own environments
+(fixed and disabled when there is exactly one), the AI model is pinned
+(`model`, default `anthropic:claude-sonnet-5`), and the signing password,
+**Get Logs** and **Session ID** disappear from the sidebar. All of it is also
+enforced server-side — `/api/chat` rejects a customer key aimed at a foreign
+server, and `/api/logs` refuses customer keys outright.
+
+```env
+ADCP_CUSTOMER_KEYS=[{"key": "<agency API key>", "label": "Velocity Media (demo agency)", "servers": [{"url": "https://dev-demo-mcp.gotom.io/mcp", "label": "Demo"}]}]
+```
+
+The key must be a real buyer API key from an **agency** of the instance it
+points at — the seller authenticates it, this app only routes. Today there is
+one instance, `demo` (see `app/config/instances/demo.ts` in `sdk-adcp-seller`),
+whose agency buyer is `velocity_media`; add one entry per customer as further
+instances appear. Customer keys are valid on their own — they don't need to be
+repeated in `VALID_ADCP_AUTH_KEYS`. Leaving the variable unset keeps the UI
+exactly as it was before this feature.
+
+**Customer sessions never sign their MCP calls** — the API key is their only
+credential, even when `ADCP_BUYER_*` signing is configured for this deployment.
+That is deliberate: when a signature and an API key arrive together, the seller
+keeps the *signed* identity as the buyer and demotes the key to an operator hint
+(see `resolveOperatorPrincipal` in `sdk-adcp-seller/app/auth/signing/verifier.ts`
+— "the key must never widen who you buy as"). Since this app's signing key maps
+to a single internal principal, signing a customer's call would book their
+campaign as that principal instead of their own agency. Internal sessions keep
+signing unchanged.
 
 > **Local cookie gotcha:** the UI marks its session cookie `Secure` unless
 > `GOTOM_ENV=local`, and `Secure` cookies are dropped over plain `http://localhost`.

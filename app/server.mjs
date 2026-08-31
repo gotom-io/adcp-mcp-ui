@@ -10,6 +10,7 @@ import fs from "fs"
 import path from 'node:path';
 import * as util from "node:util";
 import { getMcpSessionIdShort } from "./shared.mjs";
+import { customerServerAllowed, findCustomerProfile, parseCustomerKeys } from './customer-keys.mjs';
 import { SignedHttpTransport } from './signed-http-transport.mjs';
 import { buyerPublicOrigin, createBuyerSignedFetch, primeSellerCapability, publicJwkFromPrivate, signatureSessionsAvailable, signingEnabled, signingPasswordConfigured, signingPasswordOk } from './signing.mjs';
 
@@ -18,7 +19,10 @@ const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 180
 const loggerCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
 const contextHistoryCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
 const cacheKeySeparator = '___';
-const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',');
+const validAdcpAuths = process.env.VALID_ADCP_AUTH_KEYS?.split(',') ?? [];
+// Customer mode (GOT-12664): fail fast at boot — a malformed allowlist must
+// never come up half-parsed and expose foreign environments to a customer key.
+const customerKeys = parseCustomerKeys(process.env.ADCP_CUSTOMER_KEYS);
 const LOG_FILE = process.env.LOG_FILE || '/app/adcp-mcp-ui-logs/server.log';
 fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 const logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
@@ -388,7 +392,7 @@ const getModel = (modelString) => {
   }
 };
 
-const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl) {
+const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl, signRequests = true) {
   let clientTools = httpClientToolsCache.get(cacheKey);
   if (clientTools) {
     return clientTools;
@@ -409,12 +413,21 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl) {
   // learn which operations the seller requires signatures for, then route
   // MCP traffic through a fetch that signs exactly those. Falls back to the
   // plain transport behavior when signing is not configured.
-  await primeSellerCapability(mcpServerUrl, headers);
+  //
+  // Customer sessions never sign (GOT-12664): when a signature and an API key
+  // arrive together, the seller keeps the SIGNED identity as the buyer and
+  // demotes the key to operatorPrincipal ("the key must never widen who you
+  // buy as", sdk-adcp-seller app/auth/signing/verifier.ts). Our signing key
+  // maps to one internal principal, so signing a customer's call would book it
+  // as that principal instead of the customer's own agency. API key only.
+  if (signRequests) {
+    await primeSellerCapability(mcpServerUrl, headers);
+  }
   const httpClient = await createMCPClient({
     transport: new SignedHttpTransport({
       url: mcpServerUrl,
       headers,
-      fetchImpl: createBuyerSignedFetch(mcpServerUrl),
+      fetchImpl: signRequests ? createBuyerSignedFetch(mcpServerUrl) : fetch,
     }),
   });
   clientTools = await httpClient.tools();
@@ -456,6 +469,10 @@ function getHeaderInfo(req, res) {
   // the shared signing password (x-signing-password header, entered in the
   // sidebar). Fail closed: no ADCP_SIGNING_PASSWORD configured ⇒ no
   // signature-only sessions at all.
+  // Customer mode (GOT-12664): a customer key is valid on its own, but only
+  // towards its own environments. The checks live HERE (not just in the UI)
+  // because every restriction the sidebar hides can be forged as a header.
+  const customerProfile = findCustomerProfile(customerKeys, adcpAuth);
   if (!adcpAuth && signingEnabled()) {
     if (!signingPasswordConfigured()) {
       res.statusCode = 403;
@@ -470,7 +487,7 @@ function getHeaderInfo(req, res) {
       return res;
     }
     adcpAuth = '';
-  } else if ( !adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1 ) {
+  } else if ( !customerProfile && (!adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1) ) {
     res.statusCode = 403;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication (add the API key to the .env variable VALID_ADCP_AUTH_KEYS)' }));
@@ -484,8 +501,17 @@ function getHeaderInfo(req, res) {
     res.end(JSON.stringify({ error: 'MCP server missing' }));
     return res;
   }
+  if (customerProfile && !customerServerAllowed(customerProfile, mcpServerUrl)) {
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Forbidden: this API key is locked to its own environments' }));
+    return res;
+  }
 
-  const aiModel = req.headers['x-ai-model'] || 'anthropic:claude-sonnet-5';
+  // Customers don't pick the model — the key's configured model always wins.
+  const aiModel = customerProfile
+    ? customerProfile.model
+    : (req.headers['x-ai-model'] || 'anthropic:claude-sonnet-5');
   const sessionId = req.headers['x-session-id'];
 
   if ( !sessionId ) {
@@ -494,7 +520,46 @@ function getHeaderInfo(req, res) {
     res.end(JSON.stringify({ error: 'Session ID missing' }));
     return res;
   }
-  return { adcpAuth, mcpServerUrl, aiModel, sessionId };
+  return { adcpAuth, mcpServerUrl, aiModel, sessionId, customerProfile };
+}
+
+/**
+ * The config the frontend runs on, derived from the presented API key.
+ * Injected into `/` at render time (from the auth cookie) and served live via
+ * GET /api/profile so the sidebar can react when a key is typed in. A customer
+ * key narrows the server choices to its own environments, pins the model and
+ * switches the lockdown UI on (no signing password, no logs, no session id).
+ */
+function buildChatConfig(adcpAuth) {
+  const chatConfig = {};
+  const customerProfile = findCustomerProfile(customerKeys, adcpAuth);
+
+  if (customerProfile) {
+    chatConfig.customerMode = true;
+    chatConfig.serverChoices = customerProfile.servers;
+    chatConfig.aiModel = customerProfile.model;
+    chatConfig.signingEnabled = false;
+    return chatConfig;
+  }
+
+  chatConfig.customerMode = false;
+  if (process.env.MCP_SERVER_CHOICES) {
+    chatConfig.serverChoices = JSON.parse(process.env.MCP_SERVER_CHOICES || "[]");
+  }
+  if (!chatConfig.serverChoices) {
+    chatConfig.serverChoices = [
+      { url: "https://dev-demo-mcp.gotom.io/mcp", label: "Dev Demo" },
+    ];
+  }
+
+  // Tell the frontend whether RFC 9421 signing is configured: with a
+  // signing key present, an empty API-key field is a valid state
+  // (signature-only sessions) and the client-side gate must not block it.
+  // Signature-only sessions are only offered when the gate password is
+  // configured too — a signing key without the password stays API-key-only
+  // from the browser's point of view (fail closed on a public UI).
+  chatConfig.signingEnabled = signatureSessionsAvailable();
+  return chatConfig;
 }
 
 async function getBody(req) {
@@ -618,27 +683,21 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // GET /api/profile — the chat config for the key currently in the auth
+  // cookie. The frontend re-fetches this whenever the API key changes, so
+  // entering a customer key locks the sidebar down without a reload.
+  if (req.method === 'GET' && req.url === '/api/profile') {
+    const cookies = parseCookies(req);
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(buildChatConfig(cookies.adcp_auth || '')));
+    return;
+  }
+
   if ( req.method === 'GET' && req.url === '/' ) {
     const template = fs.readFileSync("./index.template.html", "utf8")
-    let chatConfig =  {};
-    if(process.env.MCP_SERVER_CHOICES){
-      chatConfig.serverChoices = JSON.parse(process.env.MCP_SERVER_CHOICES || "[]");
-    }
-
-    if(! chatConfig.serverChoices){
-      chatConfig.serverChoices = [
-          {url: "https://dev-demo-mcp.gotom.io/mcp", label: "Dev Demo"},
-          // {url: "https://dev-goldbach-mcp.gotom.io/mcp", label: "Dev Goldbach"},
-      ]
-    }
-
-    // Tell the frontend whether RFC 9421 signing is configured: with a
-    // signing key present, an empty API-key field is a valid state
-    // (signature-only sessions) and the client-side gate must not block it.
-    // Signature-only sessions are only offered when the gate password is
-    // configured too — a signing key without the password stays API-key-only
-    // from the browser's point of view (fail closed on a public UI).
-    chatConfig.signingEnabled = signatureSessionsAvailable();
+    // A returning customer's key is already in the cookie, so the first paint
+    // is already locked down — no flash of the internal sidebar.
+    const chatConfig = buildChatConfig(parseCookies(req).adcp_auth || '');
 
     const html = template
         .replaceAll("{{ WINDOW_CHAT_CONFIG }}", JSON.stringify(chatConfig, ' ', 2))
@@ -655,6 +714,15 @@ const server = createServer(async (req, res) => {
 
     if (res === headerInfo) {
       return; // error already sent
+    }
+    // Logs are an internal debugging surface — customers never see them
+    // (GOT-12664). The button is hidden in customer mode, but the endpoint
+    // must refuse on its own.
+    if (headerInfo.customerProfile) {
+      res.statusCode = 403;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: 'Forbidden: logs are not available for this API key' }));
+      return;
     }
     const query = url.searchParams.get('query') || '';
 
@@ -708,7 +776,7 @@ const server = createServer(async (req, res) => {
     if(res === headerInfo){
       return res; // some error
     }
-    const { adcpAuth, mcpServerUrl, aiModel, sessionId } = headerInfo;
+    const { adcpAuth, mcpServerUrl, aiModel, sessionId, customerProfile } = headerInfo;
     logger = getLogger(sessionId)
 
     const body = await getBody(req);
@@ -750,7 +818,7 @@ const server = createServer(async (req, res) => {
 
     let tools;
     try {
-      tools = await getHttpClientTools(cacheKey, adcpAuth, mcpServerUrl);
+      tools = await getHttpClientTools(cacheKey, adcpAuth, mcpServerUrl, !customerProfile);
     } catch (err) {
       logger.error('Failed to connect to MCP server:', err);
       res.statusCode = 502;
