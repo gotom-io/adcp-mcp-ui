@@ -145,9 +145,11 @@ function buyerSigningConfig() {
     // unsigned works with baseline pricing, signed may unlock buyer-specific
     // pricing). Without this flag only required_for/warn_for ops are signed.
     sign_supported: true,
-    // Cold-cache safety net: the spend-committing op is signed even when
+    // Cold-cache safety net: the spend-committing ops are signed even when
     // capability priming failed (a cold cache otherwise means "sign nothing").
-    always_sign: ['create_media_buy'],
+    // buy_products and accept_proposal joined create_media_buy in the seller's
+    // required_for with AdCP 3.2 (GOT-12740).
+    always_sign: ['create_media_buy', 'buy_products', 'accept_proposal'],
   };
 }
 
