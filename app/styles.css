@@ -163,6 +163,15 @@ body {
   margin-bottom: 8px;
 }
 
+/* Explains the empty MCP server select while the backend withholds the list. */
+.config-hint {
+  font-size: 12px;
+  color: var(--text-03);
+  opacity: 0.7;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
 .input-field {
   width: 100%;
   background: var(--bg-input-dark);

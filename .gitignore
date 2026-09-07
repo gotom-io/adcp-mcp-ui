@@ -1,5 +1,6 @@
 # Secrets & local environment
 .env
+.env.bak*
 app/secrets/
 
 # Logs

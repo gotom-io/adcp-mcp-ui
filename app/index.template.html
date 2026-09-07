@@ -49,9 +49,14 @@
           <div class="config-section">
             <div class="config-section-title">Configuration</div>
 
+            <!-- Customer mode (GOT-12664): the server list is already narrowed
+                 to the key's own environments; with a single environment the
+                 select is fixed. The model is always pinned for customers.
+                 All of this is enforced server-side too. -->
             <div class="config-group">
               <label for="server">MCP Server</label>
-              <select id="server" class="input-field" v-model="mcpServer" @change="saveServerCookie">
+              <select id="server" class="input-field" v-model="mcpServer" @change="saveServerCookie" :disabled="!authenticated || (customerMode && serverChoices.length === 1)">
+                <option v-if="!serverChoices.length" value="">Enter a valid API key…</option>
                 <option
                     v-for="server in serverChoices"
                     :key="server.url"
@@ -60,11 +65,16 @@
                   {{ server.label }}
                 </option>
               </select>
+              <!-- The list itself is withheld by the backend until the key
+                   resolves (GOT-12664) — this only explains the empty state. -->
+              <div class="config-hint" v-if="!authenticated">
+                Environments load once your API key is recognised.
+              </div>
             </div>
 
             <div class="config-group">
               <label for="model">AI Model</label>
-              <select id="model" class="input-field" v-model="aiModel" @change="saveModelCookie">
+              <select id="model" class="input-field" v-model="aiModel" @change="saveModelCookie" :disabled="customerMode || !authenticated">
                 <option value="anthropic:claude-sonnet-5">Claude Sonnet 5</option>
                 <option value="anthropic:claude-opus-5">Claude Opus 5</option>
                 <option value="anthropic:claude-opus-4-8">Claude Opus 4.8</option>
@@ -79,7 +89,7 @@
             <!-- Signature-only sessions are gated by a shared password: the
                  signing key belongs to the SERVER, so without this gate anyone
                  reaching a public deployment could sign as the buyer. -->
-            <div class="config-group" v-if="signingEnabled">
+            <div class="config-group" v-if="signingEnabled && !customerMode">
               <label for="signing-password">Signing Password</label>
               <input type="password" id="signing-password" class="input-field" v-model="signingPassword" @input="saveSigningPasswordCookie" placeholder="Required when API key is empty">
             </div>
@@ -91,7 +101,9 @@
           <button class="new-chat-btn" @click="clearHistory" :disabled="loading">
             New chat
           </button>
-          <div class="sidebar-meta">
+          <!-- Logs and session id are internal debugging surfaces — hidden for
+               customers (GOT-12664); /api/logs refuses customer keys anyway. -->
+          <div class="sidebar-meta" v-if="!customerMode && authenticated">
             <button class="logs-link" @click="showLogs = true">Get Logs</button>
             <div class="session-id">Session ID: {{ mcpSessionId }}</div>
           </div>
