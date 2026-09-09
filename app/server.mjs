@@ -336,7 +336,7 @@ get_task_status — Where a booking task stands (rule 8)
     "account": { "account_id": "the account_id list_accounts returned" }
   }
 }
-Returns { task_id, status, ext: { gotom_io: { media_buy_id, campaign_link, note } }, result?, error? }. status "submitted" = the offer is still waiting for approval in goTom; "completed" = approved, result holds the finished buy (rule 8); "failed" with error.code OFFER_NOT_BOOKED = goTom dropped or deleted the offer, book again if still wanted. list_tasks (params: account only) lists every task of the account with the same ext, without result.
+Returns { task_id, status, ext: { gotom_io: { media_buy_id, campaign_link, note } }, result?, error? }. status "submitted" = the offer is still waiting for approval in goTom; "completed" = approved, result holds the finished buy (rule 8); "failed" with error.code OFFER_NOT_BOOKED = goTom dropped or deleted the offer, book again if still wanted. list_tasks lists every task of the account with the same ext, without result — always pass account: { "account_id": ... }, this credential holds more than one account and an account-less call lists nothing. Always use get_task_status for a single task, never tasks_get; include_result is a boolean, account an object.
 
 get_media_buy_delivery — Get delivery/performance data
 {
