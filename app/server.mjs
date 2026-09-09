@@ -384,6 +384,28 @@ const clearContextHistory = (cacheKey) => {
   contextHistoryCache.del(cacheKey);
 };
 
+/**
+ * The message the chat shows for a failed model call. Anthropic answers HTTP 529
+ * `overloaded_error` when the selected model has no capacity; the AI SDK retries
+ * and then throws a RetryError whose `lastError`/`errors` carry the 529. Any
+ * other model has its own capacity, so switching is the fix a user can apply.
+ */
+const OVERLOAD_HINT = 'Anthropic overload, please change AI Model in selection or retry in a moment.';
+
+function describeAiError(error) {
+  const message = error?.message || String(error);
+  return isAnthropicOverload(error) ? `${OVERLOAD_HINT} (${message})` : message;
+}
+
+function isAnthropicOverload(error, depth = 0) {
+  if (!error || depth > 4) return false;
+  if (error.statusCode === 529) return true;
+  const text = `${error.message ?? ''} ${error.responseBody ?? ''}`;
+  if (/overloaded_error|\bOverloaded\b/.test(text)) return true;
+  const nested = [error.lastError, error.cause, ...(Array.isArray(error.errors) ? error.errors : [])];
+  return nested.some((inner) => isAnthropicOverload(inner, depth + 1));
+}
+
 const getModel = (modelString) => {
   const [provider, modelName] = modelString.split(':');
   switch (provider) {
@@ -865,7 +887,7 @@ const server = createServer(async (req, res) => {
           logger.debug({ onError: error })
           res.write(JSON.stringify({
             type: 'error',
-            error: (error?.message || String(error)) + ' ',
+            error: describeAiError(error) + ' ',
           }) + '\n');
         },
         onFinish: (onFinish) => {
@@ -902,9 +924,9 @@ const server = createServer(async (req, res) => {
       if (!res.headersSent) {
         res.statusCode = 500;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: `Server error: ${err.message || String(err)}` }));
+        res.end(JSON.stringify({ error: `Server error: ${describeAiError(err)}` }));
       } else {
-        res.write(JSON.stringify({ type: 'error', error: err.message || String(err) }) + '\n');
+        res.write(JSON.stringify({ type: 'error', error: describeAiError(err) }) + '\n');
         res.end();
       }
     }
