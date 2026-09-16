@@ -193,11 +193,10 @@ buy_products — Direct purchase of published offers, no proposal round trip
       { "product_id": "prod_789", "pricing_option_id": "the option list_products returned for prod_789", "budget": 5000 },
       { "product_id": "prod_456", "pricing_option_id": "the option list_products returned for prod_456", "budget": 3000, "start_time": "2026-10-01T00:00:00Z", "end_time": "2026-10-31T23:59:59Z" }
     ],
-    "purchase_order_ref": "PO-4711 — only when the user named one (rule 16)",
     "name": "Autumn Wideboard Q4 — the user's name, or one you composed (rule 16)"
   }
 }
-feed_version must be CURRENT: PRODUCT_EXPIRED means the catalog or the rates moved — call list_products again and retry with the fresh token. pricing_option_id must be exactly the one list_products returned for that product; anything else is INVALID_REQUEST. A purchase without its own start_time/end_time inherits the campaign window. Returns the commitment shape (see accept_proposal).
+Optional: purchase_order_ref — the user's PO number, verbatim, only when they named one; omit the key otherwise and never invent one (rule 16). feed_version must be CURRENT: PRODUCT_EXPIRED means the catalog or the rates moved — call list_products again and retry with the fresh token. pricing_option_id must be exactly the one list_products returned for that product; anything else is INVALID_REQUEST. A purchase without its own start_time/end_time inherits the campaign window. Returns the commitment shape (see accept_proposal).
 
 refine_proposals — Finalize ONE draft proposal
 {
@@ -235,11 +234,10 @@ accept_proposal — Execute a committed proposal as a campaign
     "account": { "account_id": "the account_id list_accounts returned" },
     "proposal_id": "prop_committed_456",
     "proposal_terms_digest": "the committed proposal's terms_digest",
-    "purchase_order_ref": "PO-4711 — only when the user named one (rule 16)",
     "name": "Autumn Wideboard Q4 — the user's name, or one you composed (rule 16)"
   }
 }
-proposal_id and proposal_terms_digest are the COMMITTED successor's (from refine_proposals), not the draft's. A wrong digest answers PROPOSAL_NOT_FOUND — use exactly the digest you displayed. Returns the submitted task envelope of rule 8: { status: "submitted", task_id, ext: { gotom_io: { media_buy_id, campaign_link, note } } }. Once goTom approved the offer, get_task_status (include_result true) returns in result: { media_buy_id, media_buy_status, confirmed_at, accepted_proposal, purchase_bindings: [{ purchase_index, product_id, package_id }], ext: { gotom_io: { campaign_link } } }. media_buy_status in that result is the status at the moment goTom approved the offer — pending_creatives, or pending_start when the tags were already integrated — and never changes afterwards; the live status is always get_media_buys. The package_ids for the creative step come from get_media_buys or from purchase_bindings. campaign_link is the campaign confirmation page: display it as a markdown link (rule 8).
+Optional: purchase_order_ref — the user's PO number, verbatim, only when they named one; omit the key otherwise and never invent one (rule 16). proposal_id and proposal_terms_digest are the COMMITTED successor's (from refine_proposals), not the draft's. A wrong digest answers PROPOSAL_NOT_FOUND — use exactly the digest you displayed. Returns the submitted task envelope of rule 8: { status: "submitted", task_id, ext: { gotom_io: { media_buy_id, campaign_link, note } } }. Once goTom approved the offer, get_task_status (include_result true) returns in result: { media_buy_id, media_buy_status, confirmed_at, accepted_proposal, purchase_bindings: [{ purchase_index, product_id, package_id }], ext: { gotom_io: { campaign_link } } }. media_buy_status in that result is the status at the moment goTom approved the offer — pending_creatives, or pending_start when the tags were already integrated — and never changes afterwards; the live status is always get_media_buys. The package_ids for the creative step come from get_media_buys or from purchase_bindings. campaign_link is the campaign confirmation page: display it as a markdown link (rule 8).
 
 decline_proposals — Walk away from proposals you will not book
 {
@@ -263,7 +261,6 @@ create_media_buy — LEGACY booking; use it only for inline creatives (rule 8a)
     "brand": { "domain": "adcp-ui.gotom.io" },
     "start_time": "2026-10-01T00:00:00Z",
     "end_time": "2026-12-31T23:59:59Z",
-    "po_number": "PO-4711 — only when the user named one (rule 16)",
     "name": "Autumn Wideboard Q4 — the user's name, or one you composed (rule 16)",
     "packages": [
       {
@@ -286,7 +283,7 @@ create_media_buy — LEGACY booking; use it only for inline creatives (rule 8a)
     ]
   }
 }
-Reading that example: each package holds exactly one creative, for its own size. The assets key (tag_22_300x250) is that format's asset_id from list_creative_formats — call list_creative_formats before booking on this path and never invent the key. format_id is the whole object from list_creative_formats, agent_url included. asset_type must be "html" or "javascript"; any other value is silently dropped and the package ends up with no tag. creative_id must be unique across the whole call.
+Optional: po_number — the user's PO number, verbatim, only when they named one; omit the key otherwise and never invent one (rule 16). Reading that example: each package holds exactly one creative, for its own size. The assets key (tag_22_300x250) is that format's asset_id from list_creative_formats — call list_creative_formats before booking on this path and never invent the key. format_id is the whole object from list_creative_formats, agent_url included. asset_type must be "html" or "javascript"; any other value is silently dropped and the package ends up with no tag. creative_id must be unique across the whole call.
 The response is the submitted task envelope of rule 8 — { status: "submitted", task_id, ext: { gotom_io: { media_buy_id, campaign_link, note } } } — never the buy itself. The finished buy arrives on the task's result once goTom approved the offer: media_buy_status there is the status at the moment goTom approved the offer (pending_creatives, or pending_start once the tags were integrated) and never changes afterwards — call get_media_buys for the live status. That result may carry ext.gotom_io.inline_creative_warnings listing creatives that could NOT be stored; those, and only those, still need a sync_creatives call. ext.gotom_io.campaign_link — on the envelope and again on the result — is the campaign confirmation page; display it as a markdown link (rule 8).
 
 list_creative_formats — Which ad formats/sizes this seller accepts. No account needed.
