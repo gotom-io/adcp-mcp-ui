@@ -426,7 +426,7 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl, sign
   }
 
   const sessionId = cacheKey.split(cacheKeySeparator)[2];
-  const xMcpSessionId = getMcpSessionIdShort(sessionId);
+  const adcpSessionId = getMcpSessionIdShort(sessionId);
   const headers = {
     // Signature-only mode sends NO auth header — the seller must then
     // authenticate the RFC 9421 signature (or reject). Never send an empty
@@ -434,7 +434,7 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl, sign
     // The seller's /mcp endpoint is exempt from the proxy's basic auth, so
     // the API key travels as a standard Bearer token.
     ...(adcpAuth ? { 'Authorization': `Bearer ${ adcpAuth }` } : {}),
-    'x-mcp-session-id': xMcpSessionId,
+    'x-adcp-session-id': adcpSessionId,
   };
   // RFC 9421 signing (opt-in via ADCP_BUYER_PRIVATE_JWK/ADCP_BUYER_KID):
   // learn which operations the seller requires signatures for, then route
@@ -844,7 +844,7 @@ const server = createServer(async (req, res) => {
 
     // we generously always write the cacke key to context history even though it doesnt change.
     // This simplifies caching and clearing of context history
-    addToContextHistory(cacheKey, 'assistant', 'xMcpSessionId: ' + getMcpSessionIdShort(sessionId));
+    addToContextHistory(cacheKey, 'assistant', 'x-adcp-session-id: ' + getMcpSessionIdShort(sessionId));
 
     // Handle clear history command
     if (body.clearHistory) {
@@ -901,13 +901,13 @@ const server = createServer(async (req, res) => {
         },
         onStepFinish: (stepResult) => {
 
-          const xMcpRequestId = stepResult?.toolResults[0]?.output?._meta['x-mcp-request-id'];
-          if(xMcpRequestId){
-            logger.setMcpRequestId(xMcpRequestId); //  notice that this is actually a bit too late, some logs are missed. But it's currently a compromise
-            logger.log("x-mcp-request-id: " + xMcpRequestId);
-            addToContextHistory(cacheKey, 'assistant', "Current xMcpRequestId: " + xMcpRequestId);
+          const adcpRequestId = stepResult?.toolResults[0]?.output?._meta['x-adcp-request-id'];
+          if(adcpRequestId){
+            logger.setMcpRequestId(adcpRequestId); //  notice that this is actually a bit too late, some logs are missed. But it's currently a compromise
+            logger.log("x-adcp-request-id: " + adcpRequestId);
+            addToContextHistory(cacheKey, 'assistant', "Current x-adcp-request-id: " + adcpRequestId);
           }else{
-            logger.log("x-mcp-request-id: unknown");
+            logger.log("x-adcp-request-id: unknown");
           }
           logger.debug({ onStepFinish: stepResult })
         },
