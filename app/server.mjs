@@ -447,14 +447,19 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl, sign
   // buy as", sdk-adcp-seller app/auth/signing/verifier.ts). Our signing key
   // maps to one internal principal, so signing a customer's call would book it
   // as that principal instead of the customer's own agency. API key only.
-  if (signRequests) {
-    await primeSellerCapability(mcpServerUrl, headers);
-  }
+  //
+  // An API-key session against a seller that advertises no request_signing
+  // stays unsigned too: signing only the always_sign ops would book them as
+  // the signing key's principal while every other call runs as the key's, and
+  // a proposal finalized under one is not found under the other. Signature-only
+  // sessions still sign — the signature is their only credential.
+  const signingAdvertised = signRequests ? await primeSellerCapability(mcpServerUrl, headers) : undefined;
+  const sign = signRequests && (signingAdvertised !== false || !adcpAuth);
   const httpClient = await createMCPClient({
     transport: new SignedHttpTransport({
       url: mcpServerUrl,
       headers,
-      fetchImpl: signRequests ? createBuyerSignedFetch(mcpServerUrl) : fetch,
+      fetchImpl: sign ? createBuyerSignedFetch(mcpServerUrl) : fetch,
     }),
   });
   clientTools = await httpClient.tools();
