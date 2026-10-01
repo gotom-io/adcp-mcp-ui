@@ -126,16 +126,27 @@ function buyerSigningConfig() {
 }
 
 /**
+ * Per seller: did its last successful capability answer advertise
+ * request_signing? Absent while priming never succeeded — then the caller
+ * cannot tell "no signing" from "unknown" and keeps the always_sign net.
+ */
+const signingAdvertised = new Map();
+
+/**
  * Fetch the seller's capability advertisement (unsigned, as the spec
  * requires) and seed the SDK's shared capability cache so the signed fetch
  * knows which operations to sign. No-op when a fresh entry already exists
  * or signing is disabled.
+ *
+ * Returns true when the seller advertises request_signing, false when it
+ * answered without it, undefined when that is unknown (priming failed or
+ * signing is disabled).
  */
 export async function primeSellerCapability(sellerMcpUrl, headers) {
-  if (!signingEnabled()) return;
+  if (!signingEnabled()) return undefined;
   const key = buildCapabilityCacheKey(sellerMcpUrl, undefined);
   const existing = defaultCapabilityCache.get(key);
-  if (existing && !defaultCapabilityCache.isStale(existing)) return;
+  if (existing && !defaultCapabilityCache.isStale(existing)) return signingAdvertised.get(key);
 
   let requestSigning;
   try {
@@ -158,7 +169,9 @@ export async function primeSellerCapability(sellerMcpUrl, headers) {
       ? raw.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('')
       : raw;
     const body = JSON.parse(jsonText);
-    requestSigning = body?.result?.structuredContent?.request_signing;
+    const capabilities = body?.result?.isError ? undefined : body?.result?.structuredContent;
+    requestSigning = capabilities?.request_signing;
+    if (capabilities?.supported_protocols) signingAdvertised.set(key, Boolean(requestSigning));
   } catch (err) {
     // Fail open, exactly like the SDK's own priming helper: signing simply
     // stays off for this seller until the next successful priming attempt.
@@ -175,6 +188,7 @@ export async function primeSellerCapability(sellerMcpUrl, headers) {
   if (requestSigning) {
     console.log(`[signing] seller ${sellerMcpUrl} requires signatures for: ${JSON.stringify(requestSigning.required_for ?? [])}`);
   }
+  return signingAdvertised.get(key);
 }
 
 /**
