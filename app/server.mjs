@@ -12,7 +12,7 @@ import * as util from "node:util";
 import { getMcpSessionIdShort } from "./shared.mjs";
 import { customerServerAllowed, findCustomerProfile, parseCustomerKeys, resolveAccess } from './customer-keys.mjs';
 import { SignedHttpTransport } from './signed-http-transport.mjs';
-import { buyerPublicOrigin, createBuyerSignedFetch, primeSellerCapability, publicJwkFromPrivate, signatureSessionsAvailable, signingEnabled, signingPasswordConfigured, signingPasswordOk } from './signing.mjs';
+import { buyerPublicOrigin, createBuyerSignedFetch, primeSellerCapability, publicJwkFromPrivate, signingEnabled } from './signing.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
@@ -419,7 +419,7 @@ const getModel = (modelString) => {
   }
 };
 
-const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl, signRequests = true) {
+const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl) {
   let clientTools = httpClientToolsCache.get(cacheKey);
   if (clientTools) {
     return clientTools;
@@ -428,25 +428,19 @@ const getHttpClientTools = async function(cacheKey, adcpAuth, mcpServerUrl, sign
   const sessionId = cacheKey.split(cacheKeySeparator)[2];
   const adcpSessionId = getMcpSessionIdShort(sessionId);
   const headers = {
-    // Signature-only mode sends NO auth header — the seller must then
-    // authenticate the RFC 9421 signature (or reject). Never send an empty
-    // header; some verifiers treat it as a present-but-invalid credential.
     // The seller's /mcp endpoint is exempt from the proxy's basic auth, so
     // the API key travels as a standard Bearer token.
-    ...(adcpAuth ? { 'Authorization': `Bearer ${ adcpAuth }` } : {}),
+    'Authorization': `Bearer ${ adcpAuth }`,
     'x-adcp-session-id': adcpSessionId,
   };
   // RFC 9421 signing (opt-in via ADCP_BUYER_PRIVATE_JWK/ADCP_BUYER_KID):
   // learn which operations the seller requires signatures for, then route
-  // MCP traffic through a fetch that signs exactly those. Falls back to the
-  // plain transport behavior when signing is not configured.
-  //
-  // Customer sessions never sign (GOT-12664): when a signature and an API key
-  // arrive together, the seller keeps the SIGNED identity as the buyer and
-  // demotes the key to operatorPrincipal ("the key must never widen who you
-  // buy as", sdk-adcp-seller app/auth/signing/verifier.ts). Our signing key
-  // maps to one internal principal, so signing a customer's call would book it
-  // as that principal instead of the customer's own agency. API key only.
+  // MCP traffic through a fetch that signs exactly those. Every session signs,
+  // customer sessions included: the seller registers this app's kid as a
+  // shared buying agent, so the signature says who calls and the API key says
+  // who buys (sdk-adcp-seller app/auth/signing/verifier.ts,
+  // resolveBuyerBehindSharedBuyingAgent). Plain fetch when signing is off.
+  const signRequests = signingEnabled();
   if (signRequests) {
     await primeSellerCapability(mcpServerUrl, headers);
   }
@@ -484,37 +478,15 @@ const createSecureCookie = (name, value, maxAge = 31536000) => {
 
 
 function getHeaderInfo(req, res) {
-  let adcpAuth = req.headers['x-adcp-auth'];
-  // Signature-only mode: when RFC 9421 signing is configured, a MISSING API
-  // key is allowed — the request to the seller then authenticates via the
-  // request signature alone (no x-adcp-auth header is forwarded). A key that
-  // IS present must still be valid, so typos never silently downgrade auth.
-  //
-  // SECURITY GATE: the signing key authenticates THIS SERVER, not the
-  // browser user — on a publicly reachable UI, an ungated signature-only
-  // session would let anyone act as this buyer. So the user must present
-  // the shared signing password (x-signing-password header, entered in the
-  // sidebar). Fail closed: no ADCP_SIGNING_PASSWORD configured ⇒ no
-  // signature-only sessions at all.
-  // Customer mode (GOT-12664): a customer key is valid on its own, but only
-  // towards its own environments. The checks live HERE (not just in the UI)
-  // because every restriction the sidebar hides can be forged as a header.
+  const adcpAuth = req.headers['x-adcp-auth'];
+  // Every session carries an API key: the seller books as the key's principal
+  // and reads this app's signature only as "who calls" — there is no
+  // signature-only session. Customer mode (GOT-12664): a customer key is
+  // valid on its own, but only towards its own environments. The checks live
+  // HERE (not just in the UI) because every restriction the sidebar hides can
+  // be forged as a header.
   const customerProfile = findCustomerProfile(customerKeys, adcpAuth);
-  if (!adcpAuth && signingEnabled()) {
-    if (!signingPasswordConfigured()) {
-      res.statusCode = 403;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Forbidden: signature-only sessions are disabled — set ADCP_SIGNING_PASSWORD in the .env (or use an API key)' }));
-      return res;
-    }
-    if (!signingPasswordOk(req.headers['x-signing-password'])) {
-      res.statusCode = 403;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Forbidden: missing or wrong signing password (enter it in the sidebar, or use an API key)' }));
-      return res;
-    }
-    adcpAuth = '';
-  } else if ( !customerProfile && (!adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1) ) {
+  if ( !customerProfile && (!adcpAuth || validAdcpAuths.indexOf(adcpAuth) === -1) ) {
     res.statusCode = 403;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ error: 'Forbidden: missing/invalid authentication (add the API key to the .env variable VALID_ADCP_AUTH_KEYS)' }));
@@ -567,19 +539,14 @@ function internalServerChoices() {
  * GET /api/profile so the sidebar can react when a key is typed in.
  *
  * The server list is WITHHELD unless the credentials resolve (GOT-12664):
- * an unknown key, no key, or a wrong signing password gets an empty list.
+ * an unknown key or no key gets an empty list.
  * This is a backend gate, not a UI one — hiding the environments in the
  * sidebar would protect nothing, since anyone can read this response
  * directly. A customer key sees only its own servers, with the model pinned
- * and the lockdown UI on (no signing password, no logs, no session id).
+ * and the lockdown UI on (no logs, no session id).
  */
-function buildChatConfig(adcpAuth, signingPassword) {
-  const access = resolveAccess({
-    customerKeys,
-    validKeys: validAdcpAuths,
-    adcpAuth,
-    signaturePasswordOk: signatureSessionsAvailable() && signingPasswordOk(signingPassword),
-  });
+function buildChatConfig(adcpAuth) {
+  const access = resolveAccess({ customerKeys, validKeys: validAdcpAuths, adcpAuth });
 
   if (access.mode === 'customer') {
     return {
@@ -587,27 +554,17 @@ function buildChatConfig(adcpAuth, signingPassword) {
       customerMode: true,
       serverChoices: access.profile.servers,
       aiModel: access.profile.model,
-      signingEnabled: false,
     };
   }
 
-  // Tell the frontend whether RFC 9421 signing is configured: with a
-  // signing key present, an empty API-key field is a valid state
-  // (signature-only sessions) and the client-side gate must not block it.
-  // Signature-only sessions are only offered when the gate password is
-  // configured too — a signing key without the password stays API-key-only
-  // from the browser's point of view (fail closed on a public UI).
-  const signingEnabled = signatureSessionsAvailable();
-
   if (access.mode === 'anonymous') {
-    return { authenticated: false, customerMode: false, serverChoices: [], signingEnabled };
+    return { authenticated: false, customerMode: false, serverChoices: [] };
   }
 
   return {
     authenticated: true,
     customerMode: false,
     serverChoices: internalServerChoices(),
-    signingEnabled,
   };
 }
 
@@ -697,7 +654,6 @@ const server = createServer(async (req, res) => {
       adcp_auth: cookies.adcp_auth || '',
       mcp_server: cookies.mcp_server || '',
       ai_model: cookies.ai_model || '',
-      signing_password: cookies.signing_password || '',
     }));
     return;
   }
@@ -722,9 +678,6 @@ const server = createServer(async (req, res) => {
     if (body.ai_model !== undefined) {
       cookiesToSet.push(createSecureCookie('ai_model', body.ai_model));
     }
-    if (body.signing_password !== undefined) {
-      cookiesToSet.push(createSecureCookie('signing_password', body.signing_password));
-    }
 
     res.setHeader('Set-Cookie', cookiesToSet);
     res.setHeader('Content-Type', 'application/json');
@@ -738,7 +691,7 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/api/profile') {
     const cookies = parseCookies(req);
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(buildChatConfig(cookies.adcp_auth || '', cookies.signing_password || '')));
+    res.end(JSON.stringify(buildChatConfig(cookies.adcp_auth || '')));
     return;
   }
 
@@ -747,7 +700,7 @@ const server = createServer(async (req, res) => {
     // A returning customer's key is already in the cookie, so the first paint
     // is already locked down — no flash of the internal sidebar.
     const cookies = parseCookies(req);
-    const chatConfig = buildChatConfig(cookies.adcp_auth || '', cookies.signing_password || '');
+    const chatConfig = buildChatConfig(cookies.adcp_auth || '');
 
     const html = template
         .replaceAll("{{ WINDOW_CHAT_CONFIG }}", JSON.stringify(chatConfig, ' ', 2))
@@ -868,7 +821,7 @@ const server = createServer(async (req, res) => {
 
     let tools;
     try {
-      tools = await getHttpClientTools(cacheKey, adcpAuth, mcpServerUrl, !customerProfile);
+      tools = await getHttpClientTools(cacheKey, adcpAuth, mcpServerUrl);
     } catch (err) {
       logger.error('Failed to connect to MCP server:', err);
       res.statusCode = 502;

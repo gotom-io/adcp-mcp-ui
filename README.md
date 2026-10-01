@@ -102,8 +102,8 @@ Early-access customers use the same deployment but must not reach foreign
 instances. A key listed here switches the UI into **customer mode** as soon as
 it is entered: the MCP server dropdown only offers that key's own environments
 (fixed and disabled when there is exactly one), the AI model is pinned
-(`model`, default `anthropic:claude-sonnet-5`), and the signing password,
-**Get Logs** and **Session ID** disappear from the sidebar. All of it is also
+(`model`, default `anthropic:claude-sonnet-5`), and **Get Logs** and
+**Session ID** disappear from the sidebar. All of it is also
 enforced server-side — `/api/chat` rejects a customer key aimed at a foreign
 server, and `/api/logs` refuses customer keys outright.
 
@@ -119,15 +119,16 @@ instances appear. Customer keys are valid on their own — they don't need to be
 repeated in `VALID_ADCP_AUTH_KEYS`. Leaving the variable unset keeps the UI
 exactly as it was before this feature.
 
-**Customer sessions never sign their MCP calls** — the API key is their only
-credential, even when `ADCP_BUYER_*` signing is configured for this deployment.
-That is deliberate: when a signature and an API key arrive together, the seller
-keeps the *signed* identity as the buyer and demotes the key to an operator hint
-(see `resolveOperatorPrincipal` in `sdk-adcp-seller/app/auth/signing/verifier.ts`
-— "the key must never widen who you buy as"). Since this app's signing key maps
-to a single internal principal, signing a customer's call would book their
-campaign as that principal instead of their own agency. Internal sessions keep
-signing unchanged.
+**Every session signs, customer sessions included** (when `ADCP_BUYER_*` is
+configured). The seller registers this app's kid as a *shared buying agent*: the
+signature says who calls (this app), the API key says who buys, and the seller
+books as the key's principal — see `resolveBuyerBehindSharedBuyingAgent` in
+`sdk-adcp-seller/app/auth/signing/verifier.ts`. Two seller-side rules follow:
+the signature alone buys as nobody (a missing or unknown key is a 401), and a
+customer whose key has its *own* registered signing key is refused here
+(`buyer_has_own_signing_key`) — it must sign with that key itself. Before each
+booking the seller also checks that the customer's `brand.json` lists this
+app's domain under `authorized_operators`.
 
 > **Local cookie gotcha:** the UI marks its session cookie `Secure` unless
 > `GOTOM_ENV=local`, and `Secure` cookies are dropped over plain `http://localhost`.
@@ -156,14 +157,15 @@ plain fetch with API-key auth and behaves exactly as before. When enabled, the a
 node scripts/gen-buyer-key.mjs            # or: node scripts/gen-buyer-key.mjs my-buyer-kid
 
 # 2. Give the PUBLIC JWK (printed to stdout) to the seller so they register it.
-#    The seller maps your `kid` to a buyer principal. For goTom devs: it goes
-#    into `instanceSigningKeys` in the seller's `app/config/instances/` config —
-#    ask the team, or add it yourself if you run the seller locally.
+#    The seller registers your `kid` as a shared buying agent
+#    (`sharedBuyingAgentDomain`) in `instanceSigningKeys` of its
+#    `app/config/instances/` config — ask the team, or add it yourself if you
+#    run the seller locally. (Local shortcut: the seller's committed demo
+#    fixture SHARED_BUYING_AGENT_DEMO_KEY is already registered.)
 
 # 3. Add to .env  (NOTE: path is relative to the app/ dir — no leading "app/"):
 #    ADCP_BUYER_PRIVATE_JWK_FILE=secrets/buyer-private.jwk
 #    ADCP_BUYER_KID=<the kid printed by the script>
-#    ADCP_SIGNING_PASSWORD=<a password you choose>
 
 # 4. Restart
 docker compose up --build
@@ -191,20 +193,6 @@ curl -s http://localhost:3851/.well-known/jwks.json | jq   # must contain NO "d"
 ```
 
 With signing unset both routes return 404 (no identity to publish).
-
-### The signing password (why it exists)
-
-The signing key belongs to the **server**, not to the person in the
-browser. Without a gate, anyone who can reach a deployed UI could leave
-the API-key field empty and make signed requests **as your buyer
-identity**. So signature-only sessions (empty API-key field) additionally
-require the **Signing Password** (sidebar field, checked server-side
-against `ADCP_SIGNING_PASSWORD`).
-
-- `ADCP_SIGNING_PASSWORD` unset ⇒ signature-only sessions are refused
-  entirely (fail closed); sessions with a valid API key still work and
-  still get their requests signed on top.
-- Users with a valid API key never need the password.
 
 Optional signing vars:
 
@@ -236,10 +224,9 @@ Common mistakes:
   `secrets/buyer-private.jwk`, not `app/secrets/buyer-private.jwk`.
 - **Seller rejects the signature** — your public JWK isn't registered with the
   seller, or your `ADCP_BUYER_KID` doesn't match the JWK's `kid`.
-- **`Forbidden: signature-only sessions are disabled`** — set
-  `ADCP_SIGNING_PASSWORD` in `.env` and restart.
-- **`Forbidden: missing or wrong signing password`** — fill the "Signing
-  Password" sidebar field (or use an API key instead).
+- **Seller answers 401 `buyer_has_own_signing_key`** — that customer's API key
+  belongs to a principal with its own registered signing key; it cannot buy
+  through this shared agent.
 
 ---
 
