@@ -83,15 +83,7 @@
 
             <div class="config-group">
               <label for="auth">API Key</label>
-              <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" :placeholder="signingEnabled ? 'Empty = signed requests (RFC 9421)' : 'Enter your API key...'">
-            </div>
-
-            <!-- Signature-only sessions are gated by a shared password: the
-                 signing key belongs to the SERVER, so without this gate anyone
-                 reaching a public deployment could sign as the buyer. -->
-            <div class="config-group" v-if="signingEnabled && !customerMode">
-              <label for="signing-password">Signing Password</label>
-              <input type="password" id="signing-password" class="input-field" v-model="signingPassword" @input="saveSigningPasswordCookie" placeholder="Required when API key is empty">
+              <input type="password" id="auth" class="input-field" v-model="authToken" @input="saveCookie" placeholder="Enter your API key...">
             </div>
           </div>
         </div>
@@ -226,9 +218,7 @@
               ref="inputArea"
               @input="adjustTextareaHeight"
             ></textarea>
-            <!-- An empty API key is allowed only for signature-only sessions
-                 (server-side RFC 9421 signing) WITH the signing password. -->
-            <button class="send-btn" @click="submit" :disabled="loading || !promptInput || (!authToken && !(signingEnabled && signingPassword))">
+            <button class="send-btn" @click="submit" :disabled="loading || !promptInput || !authToken">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="19" x2="12" y2="5"></line>
                 <polyline points="5 12 12 5 19 12"></polyline>

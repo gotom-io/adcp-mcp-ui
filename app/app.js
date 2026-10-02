@@ -5,7 +5,6 @@ const { createApp, ref, onMounted, nextTick, computed } = Vue;
 createApp({
   setup() {
     const authToken = ref('');
-    const signingPassword = ref('');
     const aiModel = ref('anthropic:claude-sonnet-5');
     const promptInput = ref('');
     const messages = ref([]);
@@ -18,12 +17,9 @@ createApp({
     const serverChoices = ref(window.chat_config.serverChoices ?? []);
     const mcpServer = ref(serverChoices.value[0]?.url ?? '');
     const authenticated = ref(window.chat_config?.authenticated === true);
-    // Server-injected: true when the backend holds an RFC 9421 signing key —
-    // an empty API-key field then means "signature-only session".
-    const signingEnabled = ref(window.chat_config?.signingEnabled === true);
     // Customer mode (GOT-12664): a customer API key locks the sidebar down —
-    // only the key's own environments, a pinned model, no signing password,
-    // no logs, no session id. The server enforces all of it independently.
+    // only the key's own environments, a pinned model, no logs, no session
+    // id. The server enforces all of it independently.
     const customerMode = ref(window.chat_config?.customerMode === true);
     if (customerMode.value && window.chat_config.aiModel) {
       aiModel.value = window.chat_config.aiModel;
@@ -86,7 +82,6 @@ createApp({
     // and off live while the key is being typed/pasted.
     const applyProfile = (profile) => {
       customerMode.value = profile.customerMode === true;
-      signingEnabled.value = profile.signingEnabled === true;
       authenticated.value = profile.authenticated === true;
       serverChoices.value = profile.serverChoices ?? [];
       if (!serverChoices.value.some(server => server.url === mcpServer.value)) {
@@ -113,12 +108,6 @@ createApp({
     };
     const saveServerCookie = () => saveSetting('mcp_server', mcpServer.value);
     const saveModelCookie = () => saveSetting('ai_model', aiModel.value);
-    const saveSigningPasswordCookie = async () => {
-      // A valid signing password resolves a signature-only session, which is
-      // what makes the server list available — refresh once the cookie landed.
-      await saveSetting('signing_password', signingPassword.value);
-      await refreshProfile();
-    };
 
     // Load settings from server on mount
     onMounted(async () => {
@@ -139,9 +128,6 @@ createApp({
         // In customer mode the model is pinned server-side — the cookie loses.
         if (!customerMode.value && settings.ai_model && settings.ai_model.startsWith('anthropic:')) {
           aiModel.value = settings.ai_model;
-        }
-        if (settings.signing_password) {
-          signingPassword.value = settings.signing_password;
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -188,13 +174,7 @@ createApp({
 
     const getRequestHeaders = () => ({
       'Content-Type': 'application/json',
-      // Omit the auth header entirely when the field is empty — with RFC
-      // 9421 signing configured server-side, the request is then
-      // authenticated purely via the request signature. Signature-only
-      // sessions require the signing password (checked server-side; the
-      // signing key must not be usable by anonymous visitors).
       ...(authToken.value ? { 'x-adcp-auth': authToken.value } : {}),
-      ...(!authToken.value && signingPassword.value ? { 'x-signing-password': signingPassword.value } : {}),
       'x-mcp-server': mcpServer.value,
       'x-ai-model': aiModel.value,
       'x-session-id': sessionId,
@@ -254,17 +234,12 @@ createApp({
       const text = promptInput.value.trim();
       if (!text || loading.value) return;
       
-      // An empty API key is only valid when the server signs requests
-      // (RFC 9421 signature-only session) AND the user presents the signing
-      // password — the signing key must not be usable anonymously.
       if (!mcpServer.value) {
         error.value = 'No environment available yet — enter a valid API key in the sidebar.';
         return;
       }
-      if (!authToken.value && !(signingEnabled.value && signingPassword.value)) {
-        error.value = signingEnabled.value
-          ? 'Enter an API key OR the signing password in the sidebar before sending a message.'
-          : 'Please enter an API key in the sidebar before sending a message.';
+      if (!authToken.value) {
+        error.value = 'Please enter an API key in the sidebar before sending a message.';
         return;
       }
       
@@ -336,8 +311,6 @@ createApp({
 
     return {
       authToken,
-      signingPassword,
-      signingEnabled,
       customerMode,
       authenticated,
       mcpServer,
@@ -349,7 +322,6 @@ createApp({
       saveCookie,
       saveServerCookie,
       saveModelCookie,
-      saveSigningPasswordCookie,
       submit,
       handleKeydown,
       clearHistory,

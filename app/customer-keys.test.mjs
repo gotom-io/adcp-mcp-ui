@@ -114,16 +114,4 @@ describe('resolveAccess', () => {
     assert.equal(resolve({ adcpAuth: '' }).mode, 'anonymous');
     assert.equal(resolve({ adcpAuth: undefined }).mode, 'anonymous');
   });
-
-  it('lets a valid signature-only session in (empty key + password ok)', () => {
-    assert.equal(resolve({ adcpAuth: '', signaturePasswordOk: true }).mode, 'internal');
-  });
-
-  it('does not let the signing password rescue a wrong key', () => {
-    assert.equal(resolve({ adcpAuth: 'guessed-key', signaturePasswordOk: true }).mode, 'anonymous');
-  });
-
-  it('keeps customer mode even when the signing password is present', () => {
-    assert.equal(resolve({ adcpAuth: 'key-20min', signaturePasswordOk: true }).mode, 'customer');
-  });
 });
