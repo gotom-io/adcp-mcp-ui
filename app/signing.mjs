@@ -33,6 +33,13 @@
  *      exactly the operations the seller advertised in `required_for` /
  *      `warn_for` and leaves everything else (initialize, tools/list,
  *      get_products, …) unsigned.
+ *
+ * The seller's endpoint also selects the signature profile (AdCP 3.2
+ * migration guide, "Mixed-version request signing"): an endpoint whose
+ * `adcp.supported_versions` holds a 3.2 release gets the 3.2 profile (padded
+ * Base64 `Signature` / `Content-Digest`, digest always covered), every other
+ * endpoint the 3.0/3.1 profile (unpadded Base64URL). The `adcp_version` a
+ * request carries plays no part in that choice.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
@@ -41,6 +48,7 @@ import {
   buildCapabilityCacheKey,
   createAgentSignedFetch,
   defaultCapabilityCache,
+  requestSigningEncodingForVersion,
 } from '@adcp/sdk/signing';
 
 // Relative ADCP_BUYER_PRIVATE_JWK_FILE paths resolve against THIS directory
@@ -132,6 +140,44 @@ function buyerSigningConfig() {
  */
 const signingAdvertised = new Map();
 
+/** Release lines naming the two request-signing profiles. */
+const SIGNING_PROFILE_3_2 = '3.2';
+const SIGNING_PROFILE_LEGACY = '3.1';
+
+/**
+ * Per seller: the signing profile its last successful capability answer
+ * selects. Absent while priming never succeeded — a 3.2 signer then signs
+ * the 3.2 profile, since the legacy one is only for an endpoint known to
+ * serve 3.0/3.1 alone.
+ */
+const sellerSigningProfile = new Map();
+
+/**
+ * The profile a capability answer selects: 3.2 as soon as one advertised
+ * release signs RFC 8941 Base64, legacy otherwise — also for a seller that
+ * lists no `supported_versions` at all, which predates 3.2.
+ */
+function signingProfileOf(capabilities) {
+  const versions = capabilities?.adcp?.supported_versions;
+  const speaks32 =
+    Array.isArray(versions) &&
+    versions.some(v => typeof v === 'string' && requestSigningEncodingForVersion(v) === 'rfc8941-base64');
+  return speaks32 ? SIGNING_PROFILE_3_2 : SIGNING_PROFILE_LEGACY;
+}
+
+function signingProfileFor(sellerMcpUrl) {
+  return sellerSigningProfile.get(sellerMcpUrl) ?? SIGNING_PROFILE_3_2;
+}
+
+/**
+ * The key the SDK's signed fetch reads the seller's capability under. It
+ * carries the signing profile, so an entry stored without it is never found
+ * and nothing gets signed.
+ */
+function capabilityCacheKey(sellerMcpUrl) {
+  return buildCapabilityCacheKey(sellerMcpUrl, undefined, undefined, signingProfileFor(sellerMcpUrl));
+}
+
 /**
  * Fetch the seller's capability advertisement (unsigned, as the spec
  * requires) and seed the SDK's shared capability cache so the signed fetch
@@ -144,9 +190,8 @@ const signingAdvertised = new Map();
  */
 export async function primeSellerCapability(sellerMcpUrl, headers) {
   if (!signingEnabled()) return undefined;
-  const key = buildCapabilityCacheKey(sellerMcpUrl, undefined);
-  const existing = defaultCapabilityCache.get(key);
-  if (existing && !defaultCapabilityCache.isStale(existing)) return signingAdvertised.get(key);
+  const existing = defaultCapabilityCache.get(capabilityCacheKey(sellerMcpUrl));
+  if (existing && !defaultCapabilityCache.isStale(existing)) return signingAdvertised.get(sellerMcpUrl);
 
   let requestSigning;
   try {
@@ -171,13 +216,17 @@ export async function primeSellerCapability(sellerMcpUrl, headers) {
     const body = JSON.parse(jsonText);
     const capabilities = body?.result?.isError ? undefined : body?.result?.structuredContent;
     requestSigning = capabilities?.request_signing;
-    if (capabilities?.supported_protocols) signingAdvertised.set(key, Boolean(requestSigning));
+    if (capabilities?.supported_protocols) {
+      signingAdvertised.set(sellerMcpUrl, Boolean(requestSigning));
+      sellerSigningProfile.set(sellerMcpUrl, signingProfileOf(capabilities));
+    }
   } catch (err) {
     // Fail open, exactly like the SDK's own priming helper: signing simply
     // stays off for this seller until the next successful priming attempt.
     console.warn(`[signing] capability priming failed for ${sellerMcpUrl}: ${err?.message ?? err}`);
   }
-  defaultCapabilityCache.set(key, {
+  // After the profile is settled: the key carries it.
+  defaultCapabilityCache.set(capabilityCacheKey(sellerMcpUrl), {
     requestSigning,
     adcpVersion: 3,
     fetchedAt: Math.floor(Date.now() / 1000),
@@ -186,9 +235,12 @@ export async function primeSellerCapability(sellerMcpUrl, headers) {
     ...(requestSigning ? {} : { staleAt: Math.floor(Date.now() / 1000) + 60 }),
   });
   if (requestSigning) {
-    console.log(`[signing] seller ${sellerMcpUrl} requires signatures for: ${JSON.stringify(requestSigning.required_for ?? [])}`);
+    console.log(
+      `[signing] seller ${sellerMcpUrl} requires signatures for: ${JSON.stringify(requestSigning.required_for ?? [])}` +
+        ` (AdCP ${signingProfileFor(sellerMcpUrl)} signing profile)`,
+    );
   }
-  return signingAdvertised.get(key);
+  return signingAdvertised.get(sellerMcpUrl);
 }
 
 /**
@@ -198,8 +250,20 @@ export async function primeSellerCapability(sellerMcpUrl, headers) {
  */
 export function createBuyerSignedFetch(sellerMcpUrl) {
   if (!signingEnabled()) return fetch;
-  return createAgentSignedFetch({
-    signing: buyerSigningConfig(),
-    sellerAgentUri: sellerMcpUrl,
-  });
+  // One signed fetch per profile, picked per request: a session opened while
+  // priming failed must follow the profile a later priming settles on.
+  const fetchByProfile = new Map();
+  return (input, init) => {
+    const adcpVersion = signingProfileFor(sellerMcpUrl);
+    let signedFetch = fetchByProfile.get(adcpVersion);
+    if (!signedFetch) {
+      signedFetch = createAgentSignedFetch({
+        signing: buyerSigningConfig(),
+        sellerAgentUri: sellerMcpUrl,
+        adcpVersion,
+      });
+      fetchByProfile.set(adcpVersion, signedFetch);
+    }
+    return signedFetch(input, init);
+  };
 }

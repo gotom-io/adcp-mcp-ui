@@ -148,6 +148,12 @@ plain fetch with API-key auth and behaves exactly as before. When enabled, the a
 2. routes MCP traffic through a fetch that signs **exactly those** operations
    (`create_media_buy` is always signed as a cold-cache safety net).
 
+The same capability answer picks the **signature profile** (AdCP 3.2 migration
+guide, "Mixed-version request signing"): a seller whose `adcp.supported_versions`
+lists a 3.2 release gets the 3.2 profile (padded Base64 `Signature` and
+`Content-Digest`, digest always covered); a seller on 3.0/3.1 only gets the legacy
+profile (unpadded Base64URL). The `adcp_version` of a request does not matter.
+
 ### Setup
 
 ```bash
@@ -206,7 +212,7 @@ Optional signing vars:
 On startup with signing on, the logs show which ops the seller requires:
 
 ```
-[signing] seller <url> requires signatures for: ["create_media_buy", ...]
+[signing] seller <url> requires signatures for: ["create_media_buy", ...] (AdCP 3.2 signing profile)
 ```
 
 If priming fails (seller unreachable / doesn't advertise signing) the app **fails
