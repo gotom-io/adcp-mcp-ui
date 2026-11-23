@@ -13,6 +13,7 @@ import { getMcpSessionIdShort } from "./shared.mjs";
 import { customerServerAllowed, findCustomerProfile, parseCustomerKeys, resolveAccess } from './customer-keys.mjs';
 import { SignedHttpTransport } from './signed-http-transport.mjs';
 import { buyerPublicOrigin, createBuyerSignedFetch, primeSellerCapability, publicJwkFromPrivate, signingEnabled } from './signing.mjs';
+import { cachedSystemMessage, describeCacheUsage, withTurnBreakpoint } from './prompt-cache.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const httpClientToolsCache = new NodeCache({ stdTTL: 3600 * 12, checkperiod: 1800, useClones: false });
@@ -840,8 +841,10 @@ const server = createServer(async (req, res) => {
     try {
       const result = await streamText({
         model: getModel(aiModel),
-        system: SYSTEM_PROMPT,
-        messages: messages,
+        // Prompt caching (GOT-13131): tools + system prompt are one cached
+        // prefix, the conversation up to this turn a second — see prompt-cache.mjs.
+        system: cachedSystemMessage(SYSTEM_PROMPT),
+        messages: withTurnBreakpoint(messages),
         tools,
         onError: ({ error }) => {
           logger.debug({ onError: error })
@@ -857,6 +860,8 @@ const server = createServer(async (req, res) => {
           }
         },
         onStepFinish: (stepResult) => {
+          // One line per model request, so the cache hit rate is readable from the log.
+          logger.log(describeCacheUsage(stepResult?.usage));
 
           const adcpRequestId = stepResult?.toolResults[0]?.output?._meta['x-adcp-request-id'];
           if(adcpRequestId){
